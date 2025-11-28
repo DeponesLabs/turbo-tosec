@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/berkacunas/turbo-tosec/compare/v1.2.0...v1.2.1) (2025-11-28)
+
+
+### Bug Fixes
+
+* **build:** add duckdb to hiddenimports to prevent runtime errors ([59cf211](https://github.com/berkacunas/turbo-tosec/commit/59cf211270d28d0ae32f0d8ca626dac7a33a559e))
+
 # [1.2.0](https://github.com/berkacunas/turbo-tosec/compare/v1.1.0...v1.2.0) (2025-11-28)
 
 
