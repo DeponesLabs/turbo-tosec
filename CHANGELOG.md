@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/berkacunas/turbo-tosec/compare/v1.3.1...v1.3.2) (2025-11-29)
+
+
+### Bug Fixes
+
+* flush print ([b12b80f](https://github.com/berkacunas/turbo-tosec/commit/b12b80f85a119bc8a0c089d738fe0c0f62de19f0))
+
 ## [1.3.1](https://github.com/berkacunas/turbo-tosec/compare/v1.3.0...v1.3.1) (2025-11-29)
 
 
