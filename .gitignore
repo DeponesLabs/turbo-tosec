@@ -29,5 +29,7 @@ yarn-error.log
 COMMIT_MESSAGES/
 ISSUE/
 
-build/
+# pyinstaller
 dist/
+build/
+*.egg-info/
