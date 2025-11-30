@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turbo-tosec"
+version = "1.2.2"  # Starter version
+description = "High-performance TOSEC DAT importer using DuckDB"
+authors = [
+  { name="Berk Acunas", email="berkacunas@gmail.com" },
+]
+dependencies = [
+    "duckdb",
+    "tqdm",
+]
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]
