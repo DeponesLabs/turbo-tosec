@@ -1,3 +1,14 @@
+## [1.3.4](https://github.com/berkacunas/turbo-tosec/compare/v1.3.3...v1.3.4) (2025-11-30)
+
+
+### Bug Fixes
+
+* add module name to imports ([43fdb72](https://github.com/berkacunas/turbo-tosec/commit/43fdb7290b6d13bdacc38943e920d07a081ae3f9))
+* **ci:** install package in release workflow and fix version import path ([c7a46cc](https://github.com/berkacunas/turbo-tosec/commit/c7a46cc3e192014aea7d5004e70371cdc11cfa36))
+* **cli:** print version ([ba87ae9](https://github.com/berkacunas/turbo-tosec/commit/ba87ae92d25974d454509a1a5a89192fc766c25d))
+* conflict module name import ([9a5057d](https://github.com/berkacunas/turbo-tosec/commit/9a5057dcd958ba1c41c0ba2d893251098cc611ff))
+* update test imports to reflect package structure ([7bb6557](https://github.com/berkacunas/turbo-tosec/commit/7bb65574a91f055d60dd2d83035b70a399594edd))
+
 ## [1.3.3](https://github.com/berkacunas/turbo-tosec/compare/v1.3.2...v1.3.3) (2025-11-30)
 
 
