@@ -144,7 +144,7 @@ def main():
     parser.add_argument("--batch-size", "-b", type=int, default=1000, help="Number of rows to insert per batch transaction (Default: 1000).")
     parser.add_argument("--no-open-log", action="store_false", dest="open_log", default=True, help="Do NOT automatically open the log file if errors occur.")
     parser.add_argument("--about", action="store_true", help="Show program information, philosophy, and safety defaults.")
-    parser.add_argument("-v", "--version", action="version", version=f"%(prog)s {__version__ if '__version__' in globals() else '1.2.2'}")
+    parser.add_argument("--version", "-v", action="version", version=f"{__version__ if '__version__' in globals() else '1.2.2'}")
     
     args = parser.parse_args()
     
