@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/berkacunas/turbo-tosec/compare/v1.4.0...v1.5.0) (2025-12-02)
+
+
+### Features
+
+* **cli:** improve ux with auto-help on empty args and high-thread warning ([2451821](https://github.com/berkacunas/turbo-tosec/commit/245182184883e5e933209710defe9c5a07137ef2)), closes [hi#thread](https://github.com/hi/issues/thread)
+
 # [1.4.0](https://github.com/berkacunas/turbo-tosec/compare/v1.3.6...v1.4.0) (2025-12-02)
 
 
