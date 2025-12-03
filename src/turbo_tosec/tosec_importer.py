@@ -23,7 +23,7 @@ The importer uses a "Producer-Consumer" pattern adapted for DuckDB's single-writ
 
 Error Handling Strategy
 -----------------------
-- **Console:** Kept clean for the progress bar. Only critical crashes are printed.
+- **Console:** Kept clean for the progress bar. Only critical crashes are printed
 - **Log File:** All skipped files, malformed XMLs, or read errors are written to `import_errors.log`.
 - **Resilience:** A single corrupt file does not stop the process. It is logged and skipped.
 
