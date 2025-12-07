@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/berkacunas/turbo-tosec/compare/v1.8.0...v1.8.1) (2025-12-07)
+
+
+### Bug Fixes
+
+* parse dispatcher replaced with old func call ([fe367d4](https://github.com/berkacunas/turbo-tosec/commit/fe367d4d4ce66204ae3297e4eb45d8900468ba24))
+
 # [1.8.0](https://github.com/berkacunas/turbo-tosec/compare/v1.7.1...v1.8.0) (2025-12-06)
 
 
