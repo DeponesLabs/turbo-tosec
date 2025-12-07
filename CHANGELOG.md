@@ -1,3 +1,10 @@
+## [1.8.2](https://github.com/berkacunas/turbo-tosec/compare/v1.8.1...v1.8.2) (2025-12-07)
+
+
+### Bug Fixes
+
+* import version ([b26ab1d](https://github.com/berkacunas/turbo-tosec/commit/b26ab1d1228c76c9b51861e7dc77c5a5654657f0))
+
 ## [1.8.1](https://github.com/berkacunas/turbo-tosec/compare/v1.8.0...v1.8.1) (2025-12-07)
 
 
