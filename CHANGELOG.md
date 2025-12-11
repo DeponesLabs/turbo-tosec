@@ -1,3 +1,24 @@
+## [1.8.2](https://github.com/berkacunas/turbo-tosec/compare/v1.8.1...v1.8.2) (2025-12-07)
+
+
+### Bug Fixes
+
+* import version ([b26ab1d](https://github.com/berkacunas/turbo-tosec/commit/b26ab1d1228c76c9b51861e7dc77c5a5654657f0))
+
+## [1.8.1](https://github.com/berkacunas/turbo-tosec/compare/v1.8.0...v1.8.1) (2025-12-07)
+
+
+### Bug Fixes
+
+* parse dispatcher replaced with old func call ([fe367d4](https://github.com/berkacunas/turbo-tosec/commit/fe367d4d4ce66204ae3297e4eb45d8900468ba24))
+
+# [1.8.0](https://github.com/berkacunas/turbo-tosec/compare/v1.7.1...v1.8.0) (2025-12-06)
+
+
+### Features
+
+* add ClrMamePro (CMP) DAT files ([d6ca21d](https://github.com/berkacunas/turbo-tosec/commit/d6ca21da5305b7d8434ead2f73a75d1c39353ea9))
+
 ## [1.7.1](https://github.com/berkacunas/turbo-tosec/compare/v1.7.0...v1.7.1) (2025-12-06)
 
 
