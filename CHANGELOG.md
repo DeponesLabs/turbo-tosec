@@ -1,3 +1,10 @@
+## [1.8.3](https://github.com/berkacunas/turbo-tosec/compare/v1.8.2...v1.8.3) (2025-12-13)
+
+
+### Bug Fixes
+
+* handle disk-full exception ([736b9bd](https://github.com/berkacunas/turbo-tosec/commit/736b9bdfd0cfd76f0d1ad72c1a6e98b0f5cdffc7))
+
 ## [1.8.2](https://github.com/berkacunas/turbo-tosec/compare/v1.8.1...v1.8.2) (2025-12-07)
 
 
