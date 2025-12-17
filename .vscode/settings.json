@@ -1,0 +1,12 @@
+{
+    "FSharp.suggestGitignore": false,
+    "github.copilot.enable": 
+    {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
+    },
+    "git.autofetch": true,
+    "git.autofetchPeriod": 180
+}

@@ -1,0 +1,38 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name":"Python Debugger: Current File",
+            "type":"debugpy",
+            "request":"launch",
+            "program":"${file}",
+            "console":"integratedTerminal",
+            "args": [
+                "--input", 
+                "${workspaceFolder}/TEST_DATS",
+                "--output",
+                "tosec_2012.duckdb",
+                "--workers", 
+                "1"
+            ]
+        },
+        {
+            "name": "Debug Turbo-TOSEC (Module)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "turbo_tosec.tosec_importer",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "args": [
+                "--input", 
+                "${workspaceFolder}/TEST_DATS",
+                "--workers", 
+                "1"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+       
+    ]
+}
