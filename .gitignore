@@ -13,7 +13,11 @@ __pycache__/
 *.wal
 
 # VS Code
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 
 # Operating system files
 Thumbs.db
