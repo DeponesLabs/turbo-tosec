@@ -1,8 +1,40 @@
 import os
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 import re
 import xml.etree.ElementTree as ET
 import logging
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+def _detect_file_format(file_path: str) -> str:
+    """
+    Dosyanın başlığını okuyarak XML mi yoksa Legacy CMP mi olduğunu anlar.
+    Tüm dosyayı okumaz, sadece ilk 1KB'a bakar. Hızlıdır.
+    
+    Returns: 'xml', 'cmp', or 'unknown'
+    """
+    try:
+        # Encoding hatalarını yutuyoruz (errors='ignore') çünkü amacımız sadece başlığı okumak.
+        # Bazı eski DAT dosyalarında garip karakterler olabilir.
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            # İlk 1024 karakter (1KB) formatı anlamak için fazlasıyla yeterli.
+            head = f.read(1024).lower().strip()
+            
+            # 1. XML Kontrolü
+            # Standart XML imzası veya TOSEC/MAME root tag'i var mı?
+            if "<?xml" in head or "<datafile" in head or "<mame" in head:
+                return 'xml'
+            
+            # 2. CMP (Legacy) Kontrolü
+            # ClrMamePro imzası veya parantezli yapı var mı?
+            if "clrmamepro" in head or "rom (" in head or "game (" in head:
+                return 'cmp'
+            
+            return 'unknown'
+
+    except Exception:
+        # Dosya okunamazsa (örneğin binary ise veya yetki yoksa)
+        return 'unknown'
 
 class DatFileParser:
     """
@@ -135,3 +167,147 @@ class DatFileParser:
                                 system_name
                     ))
         return rows
+
+# Streaming Engine => Xml -> Parquet using PyArraw
+def parse_and_save_chunks(file_path: str, output_dir: str, chunk_size: int = 500000) -> Dict:
+    """
+    Reads XML in a streaming fashion and writes directly to Parquet using PyArrow.
+    No Pandas dependency = Smaller EXE size.
+    """
+    fmt = _detect_file_format(file_path)
+    if fmt != 'xml':
+        raise ValueError(f"SKIPPED_LEGACY_FORMAT: Detected '{fmt}'. Streaming mode requires XML.")
+    
+    dat_filename = os.path.basename(file_path)
+    try:
+        system_name = os.path.basename(os.path.dirname(file_path))
+    except:
+        system_name = "Unknown"
+    platform = dat_filename.split(' - ')[0]
+
+    buffer = []
+    chunk_index = 0
+    total_roms = 0
+    
+    # PyArrow Schema (Define manually for type-safety)
+    # DuckDB recognizes types automatically.
+    schema = pa.schema([('filename', pa.string()), 
+                        ('platform', pa.string()), 
+                        ('game_name', pa.string()),
+                        ('description', pa.string()), 
+                        ('rom_name', pa.string()), 
+                        ('size', pa.int64()),
+                        ('crc', pa.string()), 
+                        ('md5', pa.string()), 
+                        ('sha1', pa.string()), 
+                        ('status', pa.string()), 
+                        ('system', pa.string())
+    ])
+    
+    try:
+        context = ET.iterparse(file_path, events=("end",))
+        
+        for event, elem in context:
+            if elem.tag in ('game', 'machine'):
+                game_name = elem.get('name')
+                desc_node = elem.find('description')
+                description = desc_node.text if desc_node is not None else ""
+                
+                for rom in elem.findall('rom'):
+                    final_size = _try_parse_size(rom.get('size'))
+                    
+                    row = {
+                        'filename': dat_filename,
+                        'platform': platform,
+                        'game_name': game_name,
+                        'description': description,
+                        'rom_name': rom.get('name'),
+                        'size': final_size,
+                        'crc': rom.get('crc'),
+                        'md5': rom.get('md5'),
+                        'sha1': rom.get('sha1'),
+                        'status': rom.get('status', 'good'),
+                        'system': system_name
+                    }
+                    buffer.append(row)
+                    total_roms += 1
+                
+                elem.clear()
+                
+                if len(buffer) >= chunk_size:
+                    _write_chunk_arrow(buffer, output_dir, dat_filename, chunk_index, schema)
+                    buffer = [] 
+                    chunk_index += 1
+        
+        if buffer:
+            _write_chunk_arrow(buffer, output_dir, dat_filename, chunk_index, schema)
+            
+        return {"roms": total_roms, "chunks": chunk_index + 1}
+
+    except Exception as e:
+        logging.error(f"Streaming Error in {file_path}: {e}")
+        raise e
+
+def _write_chunk_arrow(data: List[Dict], output_dir: str, original_filename: str, index: int, schema: pa.Schema):
+    """
+    Writes a list of dicts to Parquet using pure PyArrow.
+    """
+    if not data:
+        return
+
+    safe_name = "".join(x for x in original_filename if x.isalnum() or x in "._-")
+    output_path = os.path.join(output_dir, f"{safe_name}_part_{index}.parquet")
+    
+    # 1. List of Dicts -> PyArrow Table (Çok hızlıdır)
+    table = pa.Table.from_pylist(data, schema=schema)
+    
+    # 2. Write to Disk
+    pq.write_table(table, output_path, compression='snappy')
+
+def _try_parse_size(raw_value: str) -> int:
+    """
+    Parses a size string robustly, handling hex, units, and dirty formats.
+    Returns 0 if absolutely no number can be extracted.
+    
+    Examples:
+      "1024" -> 1024
+      "1kb"  -> 1024
+      "0x10" -> 16
+      "10 mb" -> 10485760
+      "None" -> 0
+    """
+    if not raw_value:
+        return 0
+        
+    s = str(raw_value).strip().lower()
+    
+    # 1. Hexadecimal Check (0x...)
+    if s.startswith("0x") or s.startswith("$"):
+        try:
+            # clear $ 
+            clean_hex = s.replace("$", "")
+            return int(clean_hex, 16)
+        except ValueError:
+            # Appears like hex but not. Ex. 0xZZZ
+            raise ValueError(f"Invalid Hex format: '{raw_value}'")
+
+    # 2. Unit Handling (KB, MB, GB)
+    multiplier = 1
+    if "kb" in s or "k " in s or s.endswith("k"):
+        multiplier = 1024
+    elif "mb" in s or "m " in s or s.endswith("m"):
+        multiplier = 1024 ** 2
+    elif "gb" in s or "g " in s or s.endswith("g"):
+        multiplier = 1024 ** 3
+
+    # 3. Extract digits
+    match = re.search(r"(\d+)", s)
+    if match:
+        try:
+            val = int(match.group(1))
+            return val * multiplier
+        except ValueError:
+            raise ValueError(f"Integer conversion failed for: '{raw_value}'")
+            
+    # If no match.
+    raise ValueError(f"Unknown/Unparsable size format: '{raw_value}'")

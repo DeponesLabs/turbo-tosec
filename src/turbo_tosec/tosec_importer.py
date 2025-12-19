@@ -60,7 +60,7 @@ def setup_logging(log_file: str):
     )
 
 def open_file_with_default_app(filepath):
-
+    """Opens a file with the OS default application."""
     try:
         if platform.system() == 'Windows':
             os.startfile(filepath)
@@ -235,6 +235,10 @@ def main():
     parser_scan.add_argument("--output", "-o", default="tosec.duckdb", help="Name/path of the DuckDB file to be created.")
     parser_scan.add_argument("--workers", "-w", type=int, default=1, help="Number of worker threads (Default: 1). Tip: Use 0 to auto-detect CPU count.")
     parser_scan.add_argument("--batch-size", "-b", type=int, default=1000, help="Number of rows to insert per batch transaction (Default: 1000).")
+    
+    parser_scan.add_argument("--streaming", action="store_true", help="Enable Low-Memory mode: Stream XML to temp Parquet files (Recommended for >5GB files).")
+    parser_scan.add_argument("--temp-dir", default="temp_chunks", help="Directory for temporary chunk files (used in streaming mode).")
+    
     parser_scan.add_argument("--resume", action="store_true", help="Automatically resume if database exists (skip prompt).")
     parser_scan.add_argument("--force-new", action="store_true", help="Force overwrite existing database (skip prompt).")
     parser_scan.add_argument("--no-open-log", action="store_false", dest="open_log", default=True, help="Do NOT automatically open the log file if errors occur.")
@@ -309,35 +313,48 @@ def main():
             log_filename = os.path.join("logs", f"tosec_import_log_{timestamp}.log")
             
             run_scan_mode(args, log_filename)
+            
     except KeyboardInterrupt:
         print("\n  Process interrupted by user.")
         return
-    except OSError as e:
-        if "Disk is full" in str(e):
-            print(f"\n\nCRITICAL STORAGE ERROR: {e}")
-            print("   The operation was stopped to prevent data corruption.")
-            print("   Please free up space and try again (use --resume).")
+    
+    except Exception as error:
+        logging.critical(f"FATAL ERROR: {str(error)}", exc_info=True)
+        error_msg = str(error)
+        
+        print(f"\n  Critical Error: {error}")
+        print("=" * 60)
+        
+        if isinstance(error, OSError) and "Disk is full" in error_msg:
+            print(f"Error: Disk Storage Full")
+            print("Action: The operation was stopped to prevent data corruption.")
+            print("Tip: Please free up space and try again (use --resume).")
             
-            logging.shutdown()
-            if args.open_log:
-                print("   Opening log file for details...")
-                open_file_with_default_app(log_filename)
-            
-            sys.exit(1)
+        elif isinstance(error, (RuntimeError, MemoryError)):
+            print(f"Error: System Resources Exhausted")
+            print(f"Details: {error}")
+            print(f"Tip: Try reducing --workers (current: {args.workers})")
+            if args.command == "scan":
+                print(f"Tip: Enable --streaming mode if not active.")
+        
         else:
-            # Standard behavior for other OSErrors
-            print(f"\nOS Error: {e}")
-            sys.exit(1)
-    # Critical system errors
-    except (RuntimeError, MemoryError) as e:
-        print(f"\n\nCRITICAL ERROR: System resources exhausted!")
-        print(f"Details: {e}")
-        print(f"Tip: Try reducing --workers (current: {args.workers}) or --batch-size (current: {args.batch_size}).")
-        print("Exiting safely to prevent crash...")
-        return
-    except Exception as e:
-        print(f"\n  Critical Error: {e}")
-        return
+            print(f"Error: {error}")
+            print("Tip: Check the log file for technical details.")
+        
+        print("-" * 60)
+        logging.shutdown()
+            
+        if args.open_log:
+            print(f"Opening log file: {log_filename}")
+            try:
+                open_file_with_default_app(log_filename)
+            except Exception as open_err:
+                print(f"Could not open log file automatically: {open_err}")
+        else:
+            print(f"Log file saved to: {os.path.abspath(log_filename)}")
+            print("(Run with --open-log to open automatically on error)")
+            
+        sys.exit(1)
         
 if __name__ == "__main__":
     
