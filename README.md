@@ -16,8 +16,8 @@ Designed for archivists and retro gaming enthusiasts, it transforms piles of hun
 
 If you don't want to install Python, simply download the standalone executable for your OS:
 
-* **Windows:** [Download `turbo-tosec_v1.8.3_Windows.exe`](https://github.com/berkacunas/turbo-tosec/releases/latest)
-* **Linux:** [Download `turbo-tosec_v1.8.3_Linux.tar.gz`](https://github.com/berkacunas/turbo-tosec/releases/latest)
+* **Windows:** [Download `turbo-tosec_v1.9.0_Windows.exe`](https://github.com/berkacunas/turbo-tosec/releases/latest)
+* **Linux:** [Download `turbo-tosec_v1.9.0_Linux.tar.gz`](https://github.com/berkacunas/turbo-tosec/releases/latest)
 
 ---
 
@@ -130,4 +130,4 @@ turbo-tosec is developed and maintained by an independent developer. If you find
 ---
 *Disclaimer: This project does not contain TOSEC database files or ROMs. It strictly provides a tool to process the metadata files provided by the TOSEC project.*
 
-**Copyright © 2025 berkacunas & DeponesStudio.**
+**Copyright © 2025 berkacunas & Depones Labs.**

@@ -16,8 +16,8 @@ Arşivciler ve retro oyun tutkunları için tasarlanan bu araç, yüz binlerce X
 
 Python kurmakla uğraşmak istemiyorsanız, işletim sisteminiz için hazır çalıştırılabilir dosyayı indirebilirsiniz:
 
-  * **Windows:** [`turbo-tosec_v1.8.3_Windows.exe` İndir](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D\(https://github.com/berkacunas/turbo-tosec/releases/latest\))
-  * **Linux:** [`turbo-tosec_v1.8.3_Linux.tar.gz` İndir](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D\(https://github.com/berkacunas/turbo-tosec/releases/latest\))
+  * **Windows:** [`turbo-tosec_v1.9.0_Windows.exe` İndir](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D\(https://github.com/berkacunas/turbo-tosec/releases/latest\))
+  * **Linux:** [`turbo-tosec_v1.9.0_Linux.tar.gz` İndir](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D\(https://github.com/berkacunas/turbo-tosec/releases/latest\))
 
 -----
 
@@ -134,4 +134,4 @@ turbo-tosec, bağımsız bir geliştirici tarafından geliştirilmekte ve sürd�
 
 *Yasal Uyarı: Bu proje herhangi bir TOSEC veritabanı dosyası veya ROM barındırmaz. Yalnızca TOSEC projesi tarafından sağlanan metadata dosyalarını işlemek için bir araç sunar.*
 
-**Telif Hakkı © 2025 berkacunas & DeponesStudio.**
+**Telif Hakkı © 2025 berkacunas & Depones Labs.**
