@@ -8,32 +8,31 @@ import pyarrow.parquet as pq
 
 def _detect_file_format(file_path: str) -> str:
     """
-    Dosyanın başlığını okuyarak XML mi yoksa Legacy CMP mi olduğunu anlar.
-    Tüm dosyayı okumaz, sadece ilk 1KB'a bakar. Hızlıdır.
+    It determines whether a file is XML or Legacy CMP by reading the file header.
+    It doesn't read the entire file, only the first 1KB. It's fast.
     
     Returns: 'xml', 'cmp', or 'unknown'
     """
     try:
-        # Encoding hatalarını yutuyoruz (errors='ignore') çünkü amacımız sadece başlığı okumak.
-        # Bazı eski DAT dosyalarında garip karakterler olabilir.
+        # We're ignoring encoding errors because our goal is simply to read the header. 
+        # Some older DAT files may contain strange characters.
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            # İlk 1024 karakter (1KB) formatı anlamak için fazlasıyla yeterli.
             head = f.read(1024).lower().strip()
             
-            # 1. XML Kontrolü
+            # 1. XML Control
             # Standart XML imzası veya TOSEC/MAME root tag'i var mı?
             if "<?xml" in head or "<datafile" in head or "<mame" in head:
                 return 'xml'
             
-            # 2. CMP (Legacy) Kontrolü
-            # ClrMamePro imzası veya parantezli yapı var mı?
+            # 2. CMP (Legacy) Control
+            # ClrMamePro signature or a structure in parentheses?
             if "clrmamepro" in head or "rom (" in head or "game (" in head:
                 return 'cmp'
             
             return 'unknown'
 
     except Exception:
-        # Dosya okunamazsa (örneğin binary ise veya yetki yoksa)
+        # If the file is unreadable (e.g., if it's binary or if there's no authorization)
         return 'unknown'
 
 class DatFileParser:
