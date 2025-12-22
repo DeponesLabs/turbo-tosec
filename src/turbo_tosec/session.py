@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 
 from turbo_tosec.database import DatabaseManager
 from turbo_tosec.parser import DatFileParser
+from turbo_tosec.utils import Console
 
 def worker_parse_task(file_path: str) -> List[Tuple]:
     """
@@ -79,8 +80,8 @@ class ImportSession:
         if p.exists():
             try:
                 shutil.rmtree(p)
-            except Exception as e:
-                print(f"Warning: Could not clean temp dir {p}: {e}")
+            except Exception as error:
+                Console.warning(f"Warning: Could not clean temp dir {p}: {error}")
                 
         p.mkdir(parents=True, exist_ok=True)
 
@@ -88,7 +89,10 @@ class ImportSession:
         """
         Main execution entry point.
         """
-        print("Calculating total size for progress bar...")
+         # ASCII Banner
+        Console.banner()
+        
+        Console.info("Calculating dataset metrics...")
         total_bytes = sum(os.path.getsize(f) for f in self.all_files)
         remaining_bytes = sum(os.path.getsize(f) for f in files_to_process)
         initial_bytes = total_bytes - remaining_bytes
@@ -102,39 +106,39 @@ class ImportSession:
             # ---------------------------------------------------------------------
             if self.direct:
                 # Strategy 3: Direct Mode
-                print(f"🚀 Strategy: DirectMode (Streaming)")
-                print(f"   Technique: Zero-Copy Ingestion via Apache Arrow")
-                print(f"   Threads: DuckDB Internal + Main Process")
+                Console.section(f"Strategy: Direct Mode (Stream)")
+                Console.info("Technique : Zero-Copy Ingestion (Apache Arrow)", indent=2)
+                Console.info("Threads   : Main Process + DuckDB Internal", indent=2)
+                Console.info("I/O Type  : Memory Stream", indent=2)
                 self._run_direct_mode(files_to_process, total_bytes, initial_bytes)
                 
             elif self.staged:
                 # Strategy 2: Staged Mode
-                print(f"📦 Strategy: StagedMode (Batch/ETL)")
-                print(f"   Technique: XML -> Parquet (Stage) -> DuckDB")
-                print(f"   Staging Area: {self.temp_dir}/")
-                print(f"   Workers: {workers}")
+                Console.section(f"Strategy: Staged Mode (Batch)")
+                Console.info("Technique : ETL (Extract -> Transform -> Load)", indent=2)
+                Console.info(f"Staging   : {self.temp_dir}/ (Parquet)", indent=2)
+                Console.info(f"Workers   : {workers}", indent=2)
                 self._run_staged_mode(files_to_process, workers, total_bytes, initial_bytes)
                 
             else:
                 # Strategy 1: In-Memory Mode
-                print(f"🧠 Strategy: InMemoryMode (Legacy/Standard)")
-                print(f"   Technique: DOM Parsing -> Python Objects -> DB")
-                print(f"   Workers: {workers}")
+                Console.section(f"Strategy: In-Memory Mode (Legacy/Standard)")
+                Console.info("Technique : DOM Parsing", indent=2)
+                Console.info(f"Workers   : {workers}", indent=2)
                 self._run_in_memory_mode(files_to_process, workers, total_bytes, initial_bytes)
 
         except KeyboardInterrupt:
-            print("\nInterrupted.")
+            Console.warning("Process interrupted by user (SIGINT).")
         except Exception as error:
-            print(f"\nCritical Error: {error}")
+            Console.error(f"System Failure: {error}")
         finally:
-            # comment in for debug
              if self.staged and os.path.exists(self.temp_dir):
+                Console.info("Cleaning up staging area...")
                 shutil.rmtree(self.temp_dir)
-             pass
 
         return self.total_roms, self.error_count
 
-    # Method 1: Standard
+    # Strategy 1: In-memory
     def _run_in_memory_mode(self, files, workers, total_bytes, initial_bytes):
         
         with tqdm(total=total_bytes, initial=initial_bytes, unit='B', unit_scale=True, unit_divisor=1024) as pbar:
@@ -149,7 +153,7 @@ class ImportSession:
         
         self._flush_buffer() # Write any remaining data
 
-    # Method 2: Streaming / Staged 
+    # Strategy 2: Staged 
     def _run_staged_mode(self, files, workers, total_bytes, initial_bytes):
         # Parse -> Parquet Files -> Bulk Import
         with tqdm(total=total_bytes, initial=initial_bytes, unit='B', unit_scale=True, 
@@ -160,7 +164,7 @@ class ImportSession:
             
             try:
                 self.executor = executor
-                # Call Streaming worker
+                # Call Staging worker
                 future_to_file = {executor.submit(worker_staged_task, f, self.temp_dir): f for f in files}
                 
                 for future in concurrent.futures.as_completed(future_to_file):
@@ -170,7 +174,7 @@ class ImportSession:
                         
                         # Check Skipped Files (for Legacy CMP files)
                         if stats.get("skipped"):
-                            tqdm.write(f"Skipped: {stats.get('file')} ({stats.get('reason')})")
+                            tqdm.write(f"{Console.SYM_INFO} Skipped: {stats.get('file')} ({stats.get('reason')})")
                             # Push the bar amount of the size of the file so it can reach 100%.
                             try:
                                 pbar.update(os.path.getsize(file_path))
@@ -201,17 +205,17 @@ class ImportSession:
 
         # Bulk Import into DUCKDB
         if self.total_roms > 0:
-            print(f"\nLoading Staged Data from {self.temp_dir}...")
+            Console.info(f"Bulk loading from staging area: {self.temp_dir}...")
             try:
                 # DuckDB's great feature: read_parquet('folder/*.parquet')
                 self.db.import_from_parquet_folder(self.temp_dir)
-                print("Import Complete.")
+                Console.success("Bulk Import Complete.")
             except Exception as error:
-                print(f"Import Failed: {error}")
+                Console.error(f"Import Failed: {error}")
         else:
-            print("\nNo ROMs found to import.")
+            Console.warning("No ROMs found to import.")
 
-    #Method 3: Direct Stream Mode
+    # Strategy 3: Direct Mode
     def _run_direct_mode(self, files, total_bytes, initial_bytes):
         """
         Parses XML stream and injects directly into DuckDB via Arrow.
@@ -375,5 +379,7 @@ class ImportSession:
              raise OSError("CRITICAL: Disk is full or not writable!") from error
              
         self.error_count += 1
+        
+        tqdm.write(f"{Console.SYM_FAIL} Failed: {os.path.basename(file_path)} (Check logs)")
         logging.error(f"Failed: {file_path} -> {error}")
     
