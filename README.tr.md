@@ -12,14 +12,14 @@ Geleneksel XML ayrıştırıcıların aksine **turbo-tosec v2.0**, gigabytelarce
 
 Python kurulumuna ihtiyaç duymadan, işletim sisteminize uygun derlenmiş sürümü kullanabilirsiniz:
 
-* **Windows:** [İndir: `turbo-tosec_v2.0.0_Windows.exe](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D(https://github.com/berkacunas/turbo-tosec/releases/latest))`
-* **Linux:** [İndir: `turbo-tosec_v2.0.0_Linux.tar.gz](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D(https://github.com/berkacunas/turbo-tosec/releases/latest))`
+* **Windows:** [İndir: `turbo-tosec_v2.0.0_Windows.exe](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D(https://github.com/deponeslabs/turbo-tosec/releases/latest))`
+* **Linux:** [İndir: `turbo-tosec_v2.0.0_Linux.tar.gz](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D(https://github.com/deponeslabs/turbo-tosec/releases/latest))`
 
 ---
 
 ## ⚡ Temel Özellikler
 
-* **Üç Farklı İşleme Stratejisi:** Donanım kısıtlarına ve veri boyutuna göre **Direct**, **Staged** veya **Legacy** modları seçilebilir.
+* **Akıllı Varsayılan Strateji:** Karmaşık konfigürasyona ihtiyaç duymadan, veri bütünlüğü için en güvenli yöntemi (Staged Mode) otomatik seçer.
 * **Kesinti Toleransı (Crash-Safe):** Elektrik kesintisi veya sistem hatası durumunda, **Staged Mode** işlemi diske kaydeder ve bir sonraki çalıştırmada kaldığı yerden devam eder (Resume Capability).
 * **Bağımsız Mimari:** Harici bir veritabanı sunucusuna (MySQL, Postgres vb.) ihtiyaç duymaz. Çıktı, taşınabilir bir `.duckdb` dosyasıdır.
 * **Apache Arrow Entegrasyonu:** Python ve DuckDB arasındaki veri transferinde sütun bazlı bellek formatı kullanılarak işlemci maliyeti minimize edilir.
@@ -40,9 +40,28 @@ pip install .
 
 **turbo-tosec**, veri işleme (ingestion) süreci için üç farklı strateji sunar:
 
-### 1. Direct Mode (Streaming)
+### 1. Staged Mode (Varsayılan / Önerilen) 🛡️
 
-**Önerilen Senaryo:** Yüksek Hız, Yeterli RAM, SSD Disk.
+**Senaryo:** Büyük Veri Setleri, Veri Güvenliği, Kesinti Toleransı.
+
+Bu, programın **varsayılan davranışıdır**. Klasik **ETL** prensibini uygular. XML verisi önce sıkıştırılmış geçici **Parquet** dosyalarına dönüştürülür, ardından toplu olarak veritabanına yüklenir.
+
+* **Devam Edebilirlik:** İşlem yarıda kesilirse, tekrar çalıştırıldığında işlenmiş dosyalar atlanır.
+* **Stabilite:** Bellek dalgalanmalarını (RAM Spikes) minimize eder.
+* **Paralel İşleme:** Çok çekirdekli işlemcilerde `workers` parametresi ile hızlandırılabilir.
+
+```bash
+# Doğrudan çalıştırın. Staged mod otomatiktir.
+turbo-tosec --input "C:\TOSEC\DATs"
+
+# İsteğe bağlı: İşlemci çekirdek sayısını elle belirtme
+turbo-tosec --input "C:\TOSEC\DATs" --workers 4
+
+```
+
+### 2. Direct Mode (Streaming) 🏎️
+
+**Senaryo:** Yüksek Hız, Yeterli RAM, SSD Disk.
 
 XML verisini okur ve **Apache Arrow** kullanarak disk üzerinde ara işlem yapmadan doğrudan DuckDB'ye yazar (Stream). En yüksek işlem hacmine (throughput) sahip moddur.
 
@@ -51,29 +70,14 @@ turbo-tosec --input "C:\TOSEC\DATs" --direct
 
 ```
 
-### 2. Staged Mode (Batch / ETL)
+### 3. In-Memory Mode (Legacy) 💾
 
-**Önerilen Senaryo:** Çok Büyük Veri Setleri, Düşük RAM, Veri Güvenliği.
+**Senaryo:** Küçük dosyalar ve hata ayıklama (Debugging).
 
-Klasik **ETL** prensibini uygular. XML verisi önce sıkıştırılmış geçici **Parquet** dosyalarına dönüştürülür (Staging), ardından toplu olarak veritabanına yüklenir.
-
-* **Devam Edebilirlik:** İşlem yarıda kesilirse, tekrar çalıştırıldığında işlenmiş dosyalar atlanır.
-* **Paralel İşleme:** Çok çekirdekli işlemcilerde `workers` parametresi ile hızlandırılabilir.
+Eski yöntemdir. Tüm XML ağacını (DOM) belleğe yükler. Büyük dosyalar için bellek yönetimi açısından verimsizdir ve **önerilmez**.
 
 ```bash
-# 4 işlemci çekirdeği ile çalıştırma örneği
-turbo-tosec --input "C:\TOSEC\DATs" --staged --workers 4
-
-```
-
-### 3. In-Memory Mode (Legacy)
-
-**Önerilen Senaryo:** Küçük dosyalar ve hata ayıklama.
-
-Tüm XML ağacını (DOM) belleğe yükler. Büyük dosyalar için bellek yönetimi açısından verimsizdir. Herhangi bir mod belirtilmezse varsayılan olarak bu mod çalışır.
-
-```bash
-turbo-tosec --input "C:\TOSEC\DATs"
+turbo-tosec --input "C:\TOSEC\DATs" --legacy
 
 ```
 
@@ -83,10 +87,11 @@ turbo-tosec --input "C:\TOSEC\DATs"
 | --- | --- | --- |
 | `-i, --input` | DAT dosyalarını içeren kök dizin yolu. | **Zorunlu** |
 | `-o, --output` | Çıktı veritabanı dosyasının yolu. | `tosec.duckdb` |
-| `--direct` | Sıfır Kopya Akış Modunu (Zero-Copy Streaming) etkinleştirir. | `False` |
-| `--staged` | Aşamalı ETL Modunu (Batch Processing) etkinleştirir. | `False` |
+| `--staged` | Aşamalı ETL Modunu açıkça belirtir (Varsayılan davranış). | `True` (Örtük) |
+| `--direct` | Sıfır Kopya Akış Modunu (Streaming) etkinleştirir. | `False` |
+| `--legacy` | Kullanımdan kalkan In-Memory DOM Modunu etkinleştirir. | `False` |
 | `-w, --workers` | Paralel işlem sayısı (Sadece Staged Mode). | `CPU Sayısı` |
-| `--temp-dir` | Geçici Parquet dosyaları için dizin (Staged Mode). | `temp_chunks` |
+| `--temp-dir` | Geçici Parquet dosyaları için dizin. | `temp_chunks` |
 | `-b, --batch-size` | Veritabanı işlem (transaction) boyutu. | `1000` |
 
 ## ⚡ Performans Testleri
@@ -126,7 +131,7 @@ ORDER BY count DESC;
 
 ## 📚 Dokümantasyon
 
-Mimari detaylar ve ileri seviye kullanım senaryoları için **[Proje Wiki](https://github.com/berkacunas/turbo-tosec/wiki)** sayfasını inceleyebilirsiniz.
+Mimari detaylar ve ileri seviye kullanım senaryoları için **[Proje Wiki](https://github.com/deponeslabs/turbo-tosec/wiki)** sayfasını inceleyebilirsiniz.
 
 ## 📄 Lisans
 
@@ -136,4 +141,4 @@ Bu proje **GNU General Public License v3.0 (GPL-3.0)** altında lisanslanmışt�
 
 *Yasal Uyarı: Bu proje TOSEC veritabanı dosyalarını veya ROM dosyalarını içermez. Sadece TOSEC projesi tarafından sağlanan metaveri dosyalarını işlemek için teknik bir araç sağlar.*
 
-**Telif Hakkı © 2025 berkacunas & Depones Labs.**
+**Telif Hakkı © 2025 Depones Labs.**

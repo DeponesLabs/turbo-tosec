@@ -12,17 +12,17 @@ Unlike traditional XML parsers, **turbo-tosec v2.0** utilizes modern **Zero-Copy
 
 If you don't want to install Python, simply download the standalone executable for your OS:
 
-* **Windows:** [Download `turbo-tosec_v2.0.0_Windows.exe](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D(https://github.com/berkacunas/turbo-tosec/releases/latest))`
-* **Linux:** [Download `turbo-tosec_v2.0.0_Linux.tar.gz](https://www.google.com/search?q=%5Bhttps://github.com/berkacunas/turbo-tosec/releases/latest%5D(https://github.com/berkacunas/turbo-tosec/releases/latest))`
+* **Windows:** [Download `turbo-tosec_v2.0.0_Windows.exe](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D(https://github.com/deponeslabs/turbo-tosec/releases/latest))`
+* **Linux:** [Download `turbo-tosec_v2.0.0_Linux.tar.gz](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D(https://github.com/deponeslabs/turbo-tosec/releases/latest))`
 
 ---
 
 ## ⚡ Why turbo-tosec v2.0?
 
-* **Three Ingestion Strategies:** Choose between **Direct Mode** (Speed), **Staged Mode** (Safety/Resume), or **Legacy Mode** based on your hardware.
+* **Smart Default Strategy:** Automatically selects the safest ingestion method (Staged Mode) without complex configuration.
 * **Crash-Safe & Resumable:** Power outage? No problem. **Staged Mode** saves progress to disk and resumes exactly where it left off.
 * **Zero Dependencies:** No need for MySQL or Postgres servers. The output is a single, portable `.duckdb` file.
-* **Apache Arrow Integration:** Uses columnar memory formats for lightning-fast data transfer between Python and DuckDB.
+* **Apache Arrow Integration:** Uses columnar memory formats for lightning-fast data transfer between Python and DuckDB (Direct Mode).
 * **Smart Recursive Scanning:** Automatically hunts down thousands of `.dat` files in nested subdirectories.
 
 ## 📦 Installation
@@ -40,29 +40,32 @@ pip install .
 
 **turbo-tosec** offers different strategies to handle data ingestion. Choose the one that fits your needs:
 
-### 1. Direct Mode (Streaming) 🏎️
+### 1. Staged Mode (Default / Recommended) 🛡️
 
-**Best for:** High Speed, Good RAM, Fast SSDs.
+**Best for:** Huge Datasets, Reliability, Crash Safety.
 
-Uses **Apache Arrow** to stream XML data directly into DuckDB without intermediate disk I/O. This is the fastest method (Zero-Copy).
+This is the **default behavior**. Follows the **ETL (Extract, Transform, Load)** pattern. Parses XMLs into compressed temporary Parquet files before bulk loading.
+
+* **Resumable:** If the process is interrupted, re-running the command will skip already processed files.
+* **Safe:** Minimizes RAM usage spikes.
 
 ```bash
-turbo-tosec --input "C:\TOSEC\DATs" --direct
+# Just run it. Staged mode is automatic.
+turbo-tosec --input "C:\TOSEC\DATs"
+
+# Optional: You can specify worker threads manually
+turbo-tosec --input "C:\TOSEC\DATs" --workers 4
 
 ```
 
-### 2. Staged Mode (Batch / ETL) 🛡️
+### 2. Direct Mode (Streaming) 🏎️
 
-**Best for:** Huge Datasets, Low RAM, Reliability.
+**Best for:** High Speed, Good RAM, Fast SSDs.
 
-Follows the **ETL (Extract, Transform, Load)** pattern. Parses XMLs into compressed temporary Parquet files (Staging) before bulk loading.
-
-* **Resumable:** If the process is interrupted, re-running the command will skip already processed files.
-* **Parallel:** Uses multiple worker processes.
+Uses **Apache Arrow** to stream XML data directly into DuckDB without intermediate disk I/O. This is the fastest method (Zero-Copy) but less fault-tolerant than Staged Mode.
 
 ```bash
-# Process with 4 CPU cores
-turbo-tosec --input "C:\TOSEC\DATs" --staged --workers 4
+turbo-tosec --input "C:\TOSEC\DATs" --direct
 
 ```
 
@@ -70,10 +73,10 @@ turbo-tosec --input "C:\TOSEC\DATs" --staged --workers 4
 
 **Best for:** Very small files or debugging.
 
-Loads the entire XML DOM into RAM. *Not recommended for large DAT files.* This mode is active by default if no flag is provided.
+Old method. Loads the entire XML DOM into RAM. **Deprecated** and not recommended for large files.
 
 ```bash
-turbo-tosec --input "C:\TOSEC\DATs"
+turbo-tosec --input "C:\TOSEC\DATs" --legacy
 
 ```
 
@@ -83,10 +86,11 @@ turbo-tosec --input "C:\TOSEC\DATs"
 | --- | --- | --- |
 | `-i, --input` | Path to the root directory containing DAT files. | **Required** |
 | `-o, --output` | Path for the output DuckDB database. | `tosec.duckdb` |
-| `--direct` | **[New]** Enable Zero-Copy Streaming Mode (Fastest). | `False` |
-| `--staged` | **[New]** Enable ETL Batch Mode (Resumable/Safe). | `False` |
-| `-w, --workers` | Number of parallel processes (Staged Mode only). | `CPU Count` |
-| `--temp-dir` | Directory for staging Parquet chunks (Staged Mode). | `temp_chunks` |
+| `--staged` | Explicitly enable ETL Batch Mode (Default behavior). | `True` (Implicit) |
+| `--direct` | Enable Zero-Copy Streaming Mode (Fastest). | `False` |
+| `--legacy` | Enable deprecated In-Memory DOM Mode. | `False` |
+| `-w, --workers` | Number of parallel processes (Staged Mode). | `CPU Count` |
+| `--temp-dir` | Directory for staging Parquet chunks. | `temp_chunks` |
 | `-b, --batch-size` | Batch size for insertion transactions. | `1000` |
 
 ## ⚡ Performance Benchmarks
@@ -126,7 +130,7 @@ ORDER BY count DESC;
 
 ## 📚 Documentation
 
-For detailed architecture explanations and advanced usage, please refer to the **[Project Wiki](https://github.com/berkacunas/turbo-tosec/wiki)**.
+For detailed architecture explanations and advanced usage, please refer to the **[Project Wiki](https://github.com/deponeslabs/turbo-tosec/wiki)**.
 
 ## 📄 License
 
@@ -144,10 +148,8 @@ This project is licensed under the **GNU General Public License v3.0 (GPL-3.0)**
 
 <a href="[https://www.buymeacoffee.com/depones](https://www.buymeacoffee.com/depones)" target="_blank"><img src="[https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
-* **Star this repo!** ⭐ It helps visibility.
-
 ---
 
 *Disclaimer: This project does not contain TOSEC database files or ROMs. It strictly provides a tool to process the metadata files provided by the TOSEC project.*
 
-**Copyright © 2025 berkacunas & Depones Labs.**
+**Copyright © 2025 Depones Labs.**
