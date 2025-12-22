@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/DeponesLabs/turbo-tosec/compare/v1.11.0...v1.11.1) (2025-12-22)
+
+
+### Bug Fixes
+
+* correct version file path in package.json ([9e917ba](https://github.com/DeponesLabs/turbo-tosec/commit/9e917ba02494c2aa8dc1dd2edd53bf22624323f8))
+
 # [1.11.0](https://github.com/DeponesLabs/turbo-tosec/compare/v1.10.1...v1.11.0) (2025-12-22)
 
 
