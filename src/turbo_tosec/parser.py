@@ -167,15 +167,15 @@ class DatFileParser:
                     ))
         return rows
 
-# Streaming Engine => Xml -> Parquet using PyArraw
+# Staging Engine => Xml -> Parquet using PyArraw
 def parse_and_save_chunks(file_path: str, output_dir: str, chunk_size: int = 500000) -> Dict:
     """
-    Reads XML in a streaming fashion and writes directly to Parquet using PyArrow.
+    Reads XML in a staging fashion and writes directly to Parquet using PyArrow.
     No Pandas dependency = Smaller EXE size.
     """
     fmt = _detect_file_format(file_path)
     if fmt != 'xml':
-        raise ValueError(f"SKIPPED_LEGACY_FORMAT: Detected '{fmt}'. Streaming mode requires XML.")
+        raise ValueError(f"SKIPPED_LEGACY_FORMAT: Detected '{fmt}'. staging mode requires XML.")
     
     dat_filename = os.path.basename(file_path)
     try:
@@ -244,22 +244,19 @@ def parse_and_save_chunks(file_path: str, output_dir: str, chunk_size: int = 500
         return {"roms": total_roms, "chunks": chunk_index + 1}
 
     except Exception as e:
-        logging.error(f"Streaming Error in {file_path}: {e}")
+        logging.error(f"Staging Error in {file_path}: {e}")
         raise e
 
 def _write_chunk_arrow(data: List[Dict], output_dir: str, original_filename: str, index: int, schema: pa.Schema):
-    """
-    Writes a list of dicts to Parquet using pure PyArrow.
-    """
+    """Writes a list of dicts to Parquet using pure PyArrow."""
     if not data:
         return
 
     safe_name = "".join(x for x in original_filename if x.isalnum() or x in "._-")
     output_path = os.path.join(output_dir, f"{safe_name}_part_{index}.parquet")
     
-    # 1. List of Dicts -> PyArrow Table (Çok hızlıdır)
+    # 1. List of Dicts -> PyArrow Table
     table = pa.Table.from_pylist(data, schema=schema)
-    
     # 2. Write to Disk
     pq.write_table(table, output_path, compression='snappy')
 
