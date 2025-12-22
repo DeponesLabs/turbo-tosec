@@ -15,7 +15,8 @@ Python kurulumuna ihtiyaç duymadan, işletim sisteminize uygun derlenmiş sür�
 * **Windows:** [İndir: `turbo-tosec_v2.0.0_Windows.exe](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D(https://github.com/deponeslabs/turbo-tosec/releases/latest))`
 * **Linux:** [İndir: `turbo-tosec_v2.0.0_Linux.tar.gz](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D(https://github.com/deponeslabs/turbo-tosec/releases/latest))`
 
----
+  * **Windows:** [`turbo-tosec_v2.0.0_Windows.exe` İndir](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D\(https://github.com/berkacunas/turbo-tosec/releases/latest\))
+  * **Linux:** [`turbo-tosec_v2.0.0_Linux.tar.gz` İndir](https://github.com/deponeslabs/turbo-tosec/releases/latest%5D\(https://github.com/berkacunas/turbo-tosec/releases/latest\))
 
 ## ⚡ Temel Özellikler
 
