@@ -60,16 +60,19 @@ class DatabaseManager:
 
     def _setup_schema(self, target_conn=None):
         """Creates tables. Can work on the main connection or a provided temporary one."""
-        connection = target_conn or self.conn
-        if not connection:
+        conn = target_conn or self.conn
+        if not conn:
             return
 
         # Main ROM table
-        connection.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS roms (
                 dat_filename VARCHAR,
                 platform VARCHAR,
+                category VARCHAR,
                 game_name VARCHAR,
+                title VARCHAR,
+                release_year INTEGER,
                 description VARCHAR,
                 rom_name VARCHAR,
                 size BIGINT,
@@ -81,14 +84,14 @@ class DatabaseManager:
             )
         """)
         # Processed files table
-        connection.execute("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS processed_files (
                 filename VARCHAR PRIMARY KEY,
                 processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         # Metadata
-        connection.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
+        conn.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
     
     def get_metadata_value(self, key: str) -> Optional[str]:
         """Fetches a value from the metadata table safely."""
@@ -126,7 +129,7 @@ class DatabaseManager:
             return
             
         # Insert ROM data
-        self.conn.executemany("INSERT INTO roms VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", buffer)
+        self.conn.executemany("INSERT INTO roms VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", buffer)
         # Mark files as processed
         unique_files = {row[0] for row in buffer}
         for filename in unique_files:
@@ -218,7 +221,7 @@ class DatabaseManager:
         if limit_str == "auto":
             limit_str = "75%"
 
-        # Eğer zaten "16GB" gibi bir değer geldiyse doğrudan döndür
+        # If you already received a value like "16GB", return it directly.
         if "%" not in limit_str:
             return limit_str
 
