@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.1.0...v2.1.1) (2025-12-23)
+
+
+### Bug Fixes
+
+* **parser:** ensure staging output directory exists before writing ([750885c](https://github.com/DeponesLabs/turbo-tosec/commit/750885cc68b3f40bf329928e6d50a12aa005e94a))
+
 # [2.1.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.0.0...v2.1.0) (2025-12-23)
 
 
