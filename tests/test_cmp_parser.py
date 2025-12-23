@@ -46,7 +46,7 @@ def test_cmp_parsing_logic(tmp_path, parser):
     parse_cmp_dat_file fonksiyonunun veriyi doğru çekip çekmediğini test eder.
     """
     # 1. Prepare the file
-    dat_file = tmp_path / "games.dat"
+    dat_file = tmp_path / "Commodore 64 - Games.dat"
     dat_file.write_text(SAMPLE_CMP_CONTENT, encoding="utf-8")
     
     # 2. Call the function
@@ -57,16 +57,23 @@ def test_cmp_parsing_logic(tmp_path, parser):
     assert len(results) == 2
     
     # Check the first game's data
-    # Tuple elements: (filename, platform, game, desc, rom, size, crc, md5, sha1, status, system)
+    # Tuple elements: (filename, platform, category, game_name, title, year, desc, ...)
     game1 = results[0]
-    assert game1[2] == "Test Game (1986)"      # Game Name
-    assert game1[3] == "Test Game Description" # Description
-    assert game1[4] == "test.zip"              # ROM Name
-    assert game1[5] == 100                     # Size (Integer olmalı)
-    assert game1[6] == "12345678"              # CRC
+    assert game1[2] == "Games"                  # Category
+    assert game1[3] == "Test Game (1986)"       # Game Name
+    assert game1[4] == "Test Game"              # Title
+    assert game1[5] == 1986                     # Release Year
+    assert game1[6] == "Test Game Description"  # Description
+    assert game1[7] == "test.zip"               # ROM Name
+    assert game1[8] == 100                      # Size (Integer olmalı)
+    assert game1[9] == "12345678"               # CRC
 
     # Check the second game's data
     game2 = results[1]
-    assert game2[2] == "Another Game"
-    assert game2[4] == "game2.rom"
-    assert game2[5] == 200
+    assert game2[2] == "Games"
+    assert game2[3] == "Another Game"
+    assert game2[4] == "Another Game"
+    assert game2[5] is None
+    assert game2[7] == "game2.rom"
+    assert game2[8] == 200
+    
