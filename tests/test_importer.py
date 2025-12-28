@@ -1,7 +1,7 @@
 import pytest
 import os
 from turbo_tosec.database import DatabaseManager
-from turbo_tosec.parser import InMemoryParser
+from turbo_tosec.parser import InMemoryParser, _get_common_info
 
 # --- Mock Data Updated for v2.0 (14 Columns) ---
 # Old: (filename, platform, game, desc, rom, size, crc, md5, sha1, status, system)
@@ -55,7 +55,7 @@ def test_platform_parsing():
     fake_path = "/tmp/tosec/Commodore Amiga/Commodore Amiga - Games - [ADF] (TOSEC-v2020).dat"
     
     # Method return: (dat_filename, platform, category, system_name)
-    _, platform, category, _ = parser._get_common_info(fake_path)
+    _, platform, category, _ = _get_common_info(fake_path)
     
     assert platform == "Commodore Amiga"
     assert category == "Games - [ADF]"

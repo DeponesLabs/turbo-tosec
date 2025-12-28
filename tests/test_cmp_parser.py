@@ -1,6 +1,6 @@
 import os
 import pytest
-from turbo_tosec.parser import InMemoryParser
+from turbo_tosec.parser import InMemoryParser, _detect_file_format
 
 SAMPLE_CMP_CONTENT = """clrmamepro (
     name "Commodore 64 - Games"
@@ -38,8 +38,8 @@ def test_is_cmp_file_detection(tmp_path, parser):
     xml_file.write_text("<?xml version='1.0'?><datafile>...</datafile>", encoding="utf-8")
 
     # 3. Test
-    assert parser._is_cmp_file(str(cmp_file)) is True
-    assert parser._is_cmp_file(str(xml_file)) is False
+    assert _detect_file_format(cmp_file) == 'cmp'
+    assert _detect_file_format(str(xml_file)) != 'cmp'
 
 def test_cmp_parsing_logic(tmp_path, parser):
     """
