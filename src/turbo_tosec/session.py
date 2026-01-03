@@ -280,7 +280,8 @@ class ImportSession:
         def monitor_progress():
             while not self.stop_monitor.is_set():
                 time.sleep(1)
-                pbar.refresh()
+                if hasattr(pbar, 'pbar') and pbar.pbar:
+                    pbar.pbar.refresh()
         
         self.monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
         self.monitor_thread.start()
