@@ -1,3 +1,11 @@
+## [2.1.3](https://github.com/DeponesLabs/turbo-tosec/compare/v2.1.2...v2.1.3) (2025-12-28)
+
+
+### Bug Fixes
+
+* column number in pyarrow in direct mode ([33bce61](https://github.com/DeponesLabs/turbo-tosec/commit/33bce616c856a7660467753e96cf3f0163d26953))
+* update test code ([f523dcb](https://github.com/DeponesLabs/turbo-tosec/commit/f523dcbe08e978a2ab09bcdb7f2cf4970c5f8ab0))
+
 ## [2.1.2](https://github.com/DeponesLabs/turbo-tosec/compare/v2.1.1...v2.1.2) (2025-12-24)
 
 
