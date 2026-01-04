@@ -1,8 +1,10 @@
 import os
 import time
 import platform
+import psutil
+import logging
 import ctypes
-from typing import List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional, Any
 import duckdb
 from typing import NamedTuple
 
@@ -16,12 +18,18 @@ class DatabaseManager:
     Manages DuckDB connection, schema creation, and data insertion.
     Encapsulates all SQL logic to keep the main flow clean.
     """
-    def __init__(self, db_path: str, config: DBConfig = None):
+    @property
+    def columns(self) -> List[str]:
+        return self._column_names
+    
+    def __init__(self, db_path: str, config: DBConfig = None, read_only: bool = False):
         
         self.db_path = db_path
         # If config is None use default config
         self.config = config or DBConfig()
+        self.read_only = read_only
         self.conn = None
+        self._column_names = []    # for GUI, it should know the column names
         
     def __enter__(self):
         
@@ -34,24 +42,37 @@ class DatabaseManager:
 
     def connect(self):
         """Establishes connection and ensures schema exists."""
-        self.conn = duckdb.connect(self.db_path)
+        self.conn = duckdb.connect(self.db_path, read_only=self.read_only)
         
+        # Turbo settings and Table Setup in WRITE mode (CLI)
+        if not self.read_only:
+            self._apply_performance_settings()
+            self._setup_schema()
+            
+        self._load_column_metadata()
+    
+    def _apply_performance_settings(self):
+        """
+        Applies memory and thread settings for CLI Ingestion mode.
+        Prints status messages to console.
+        """
         if self.config.turbo:
-            print(f"DB: Turbo Mode engaged (Low safety, High speed) | Mem: {self.config.memory} | Threads: {self.config.threads}")
+            print(f"DB: Turbo Mode engaged (Low safety, High speed) | Mem: {self.config.memory} | Db Threads: {self.config.threads}")
             
             # Memory Configuration
             final_mem = self.config.memory
             if "%" in final_mem or final_mem == "auto":
                 final_mem = self._get_optimal_ram_limit(final_mem)
                 
+            # DuckDB PRAGMA Settings
             self.conn.execute(f"PRAGMA memory_limit='{final_mem}'")
             self.conn.execute(f"PRAGMA threads={self.config.threads}")
             
+            # Safety Off (Optional: WAL can be disabled for increased speed, but it's risky)
+            # self.conn.execute("PRAGMA disable_checkpoint_on_shutdown") 
         else:
             print("DB Config: Safe Mode engaged (Full integrity)")
             
-        self._setup_schema()
-    
     def close(self):
         """Closes the database connection safely."""
         if self.conn:
@@ -92,6 +113,17 @@ class DatabaseManager:
         """)
         # Metadata
         conn.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
+    
+    def _load_column_metadata(self):
+        """Caches column names for the GUI model."""
+        try:
+            # Check if the table exists
+            exists = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'").fetchone()[0]
+            if exists:
+                self.conn.execute("SELECT * FROM roms LIMIT 0")
+                self._column_names = [desc[0] for desc in self.conn.description]
+        except Exception:
+            self._column_names = []
     
     def get_metadata_value(self, key: str) -> Optional[str]:
         """Fetches a value from the metadata table safely."""
@@ -216,7 +248,89 @@ class DatabaseManager:
         if thread_count > 0:
             self.conn.execute(f"PRAGMA threads={thread_count}")
 
-    def _get_optimal_ram_limit(self, limit_str):
+    # Read Operations (GUI / Pagination Support)
+    def get_total_count(self, filters: Dict[str, str] = None) -> int:
+        """Returns total rows matching the filter."""
+        query = "SELECT COUNT(*) FROM roms"
+        params = []
+        
+        if filters:
+            where_clause, params = self._build_where_clause(filters)
+            query += f" WHERE {where_clause}"
+            
+        try:
+            return self.conn.execute(query, params).fetchone()[0]
+        except Exception as error:
+            error_details = f"DB Count Failed: {str(error)}\nSQL: {query}\nParams: {params}"
+            logging.error(error_details)
+            raise RuntimeError(error_details) from error
+        
+    def fetch_page(self, limit: int, offset: int, filters: Dict[str, str] = None, sort_col: str = None, sort_asc: bool = True) -> List[Tuple]:
+        """Fetches a specific slice of data for the GUI."""
+        query = "SELECT * FROM roms"
+        params = []
+        
+        if filters:
+            where_clause, filter_params = self._build_where_clause(filters)
+            query += f" WHERE {where_clause}"
+            params.extend(filter_params)
+            
+        if sort_col and sort_col in self._column_names:
+            direction = "ASC" if sort_asc else "DESC"
+            query += f" ORDER BY {sort_col} {direction}"
+            
+        query += " LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        try:
+            return self.conn.execute(query, params).fetchall()
+        except Exception as error:
+            error_details = f"DB Fetch Failed: {str(error)}\nSQL: {query}\nParams: {params}"
+            logging.error(error_details)
+            raise RuntimeError(error_details) from error
+        
+    def _build_where_clause(self, filters: Dict[str, str]) -> Tuple[str, List[Any]]:
+        """Constructs a safe SQL WHERE clause."""
+        conditions = []
+        params = []
+        
+        for col, val in filters.items():
+            if not val:
+                continue
+            
+            conditions.append(f"{col} ILIKE ?")
+            params.append(f"%{val}%")
+            
+        return " AND ".join(conditions), params
+        
+    def _get_optimal_ram_limit(self, limit_str: str) -> str:
+        """
+        Calculates RAM limit using psutil (Modern, Active Method).
+        """
+        # Calculate if the user selected "auto" or entered a percentage.
+        if limit_str == "auto":
+            percentage = 75
+        elif "%" in limit_str:
+            try:
+                percentage = int(limit_str.replace("%", ""))
+            except:
+                percentage = 75
+        else:
+            # If a value like "4GB" appears, do not touch it.
+            return limit_str
+
+        try:
+            # Total RAM (in Bytes) using psutil
+            total_ram = psutil.virtual_memory().total
+            limit_bytes = int(total_ram * (percentage / 100))
+            
+            return f"{limit_bytes}B"
+        
+        except Exception as error:
+            print(f"RAM detection failed ({error}), defaulting to 2GB.")
+            return "2GB"
+
+    def _get_optimal_ram_limit_native(self, limit_str):
         """Calculates 75% of total RAM in GB, working on both Windows and Linux."""
         if limit_str == "auto":
             limit_str = "75%"
@@ -260,7 +374,7 @@ class DatabaseManager:
             if total_ram_bytes <= 0:
                 return "4GB"
 
-            limit_gb = int((total_ram_bytes * 0.75) / (1024**3))
+            limit_gb = int((total_ram_bytes * percent) / (1024**3))
             limit_gb = max(1, limit_gb)
             
             return f"{limit_gb}GB"
