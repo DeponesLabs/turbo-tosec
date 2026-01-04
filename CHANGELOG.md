@@ -1,3 +1,10 @@
+# [2.2.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.1.3...v2.2.0) (2026-01-04)
+
+
+### Features
+
+* **core:** refactor session for library usage and add ingest API ([332a316](https://github.com/DeponesLabs/turbo-tosec/commit/332a316191b189dddf8e5f431cb7f7a155e42463)), closes [hi#level](https://github.com/hi/issues/level)
+
 ## [2.1.3](https://github.com/DeponesLabs/turbo-tosec/compare/v2.1.2...v2.1.3) (2025-12-28)
 
 
