@@ -1,8 +1,16 @@
 {
     "version": "0.2.0",
     "configurations": [
-        { // Python Debugger: Current File
+        {   // Python Debugger: Current File
             "name":"Python Debugger: Current File",
+            "type":"debugpy",
+            "request":"launch",
+            "program":"${file}",
+            "console":"integratedTerminal",
+            "justMyCode": true
+        },
+        {   // Python Debugger: Current File with Args
+            "name":"Python Debugger: Current File with Args",
             "type":"debugpy",
             "request":"launch",
             "program":"${file}",

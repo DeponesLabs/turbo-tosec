@@ -119,6 +119,7 @@ class DatabaseManager:
         try:
             # Check if the table exists
             exists = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'").fetchone()[0]
+            # exists = self.execute("DESCRIBE 'roms'")
             if exists:
                 self.conn.execute("SELECT * FROM roms LIMIT 0")
                 self._column_names = [desc[0] for desc in self.conn.description]
