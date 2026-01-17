@@ -300,7 +300,7 @@ class DatabaseManager:
         if hash_type not in valid_hashes:
             raise ValueError(f"Invalid hash type: {hash_type}")
 
-        query = f"SELECT game_name, rom_name, platform, description, {hash_type} FROM roms WHERE {hash_type} = ?"
+        query = f"SELECT game_name, title, release_year, platform, description, {hash_type} FROM roms WHERE {hash_type} = ?"
         
         params = [file_hash]
 
@@ -308,7 +308,11 @@ class DatabaseManager:
             query += " AND platform = ?"
             params.append(platform)
 
-        result = self.conn.execute(query, params).fetchone()
+        result = None
+        try:
+            result = self.conn.execute(query, params).fetchone()
+        except Exception as error:
+            print(error)
         
         # If found, append a perfect score (1.0) to maintain consistency with fuzzy search
         return (*result, 1.0) if result else None
@@ -321,7 +325,7 @@ class DatabaseManager:
         # Clean the filename: remove extension and underscores
         clean_name = filename.rsplit('.', 1)[0].replace('_', ' ')
         
-        query = "SELECT game_name, rom_name, platform, description, jaro_winkler_similarity(game_name, ?) as score FROM roms WHERE score > ?"
+        query = "SELECT dat_filename, game_name, title, release_year, platform, description, jaro_winkler_similarity(game_name, ?) as score FROM roms WHERE score > ?"
         params = [clean_name, threshold]
 
         if platform:

@@ -91,7 +91,31 @@ def clean_path(path: str) -> str:
     """Normalizes paths for display (removes distinct drive letters if needed)."""
     return os.path.normpath(path)
 
+import hashlib
+# os modülüne artık gerek kalmadı (getsize kullanmadığımız için)
 
+def calculate_file_hash(filepath: str, hash_algorithm: str = "md5", chunk_size: int = 8192) -> str:
+    """
+    Calculates the hash of a file synchronously.
+    Returns the hex digest string directly.
+    """
+    # Algorithm selection
+    if hash_algorithm == "md5":
+        hasher = hashlib.md5()
+    elif hash_algorithm == "sha1":
+        hasher = hashlib.sha1()
+    else:
+        raise ValueError(f"Unsupported hash algorithm: {hash_algorithm}")
+
+    # No need to calculate file size or track processed bytes anymore
+    try:
+        with open(filepath, 'rb') as f:
+            while chunk := f.read(chunk_size):
+                hasher.update(chunk)
+    except Exception as error:
+        print(error)
+
+    return hasher.hexdigest()
 
 def calculate_file_hash_gen(filepath: str, hash_algorithm: str = "md5", chunk_size: int = 8192) -> Generator[Tuple[int, int], None, str]:
     """
