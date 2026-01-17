@@ -1,8 +1,6 @@
 import os
-from typing import List
-
-import os
-import sys
+from typing import List, Generator, Tuple
+import hashlib
 import shutil
 
 class Console:
@@ -92,3 +90,43 @@ def get_dat_files(root_dir: str) -> List[str]:
 def clean_path(path: str) -> str:
     """Normalizes paths for display (removes distinct drive letters if needed)."""
     return os.path.normpath(path)
+
+
+
+def calculate_file_hash_gen(filepath: str, hash_algorithm: str = "md5", chunk_size: int = 8192) -> Generator[Tuple[int, int], None, str]:
+    """
+    A generator-based hash calculator.
+    
+    Yields:
+        (processed_bytes, total_bytes): Progress update.
+    
+    Returns:
+        The final hash string (captured via StopIteration in low-level usage, 
+        or simply by returning it if used as a generator).
+        
+    Note: To get the return value from a generator loop in Python, 
+    one typically needs to store the state externally or use 'yield' 
+    for the final result as well.
+    """
+    
+    # Algorithm selection
+    if hash_algorithm == "md5":
+        hasher = hashlib.md5()
+    elif hash_algorithm == "sha1":
+        hasher = hashlib.sha1()
+    else:
+        raise ValueError(f"Unsupported hash algorithm: {hash_algorithm}")
+
+    file_size = os.path.getsize(filepath)
+    processed_bytes = 0
+
+    with open(filepath, 'rb') as f:
+        while chunk := f.read(chunk_size):
+            hasher.update(chunk)
+            processed_bytes += len(chunk)
+            
+            # Yield control back to the caller with progress info
+            yield processed_bytes, file_size
+
+    # The loop is done. The generator returns the final hash.
+    return hasher.hexdigest()

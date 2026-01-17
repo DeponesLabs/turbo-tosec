@@ -1,18 +1,25 @@
-import pytest
 import os
+import duckdb
+import pytest
+
 from turbo_tosec.database import DatabaseManager
 
-def test_load_column_metadata():
+@pytest.fixture
+def db_manager():
+
+    db_path = "E:/HOME/Documents/Databases/turbo-tosec/duckdb/tosec-v2025-03-13.duckdb"
+    db = DatabaseManager(db_path, read_only=True)
+    db.connect()
+    
+
+def test_load_column_metadata(db_manager):
     
     expected_columns = ['dat_filename', 'platform', 'category', 'game_name', 'title', 'release_year', 
                      'description', 'rom_name', 'size', 'crc', 'md5', 'sha1', 'status', 'system']
     
-    db_path = "E:/HOME/Documents/Databases/turbo-tosec/duckdb/tosec-v2025-03-13.duckdb"
-    db = DatabaseManager(db_path, read_only=True)
-    db.connect()
-    db._load_column_metadata()
+    db_manager._load_column_metadata()
     
-    actual_columns = db.columns
+    actual_columns = db_manager.columns
     
     # *** Print Debug ***
     print(f"\n From DB: ({len(actual_columns)}): {actual_columns}")
@@ -29,3 +36,80 @@ def test_load_column_metadata():
 
     # Assert !
     assert actual_columns == expected_columns
+
+def test_find_by_hash_success(db_manager):
+    """Test exact match via MD5 hash."""
+    result = db_manager.find_by_hash("md5_turrican", hash_type="md5")
+    
+    assert result is not None
+    # Unpack expected fields (game_name, rom_name, platform, description, score)
+    game_name, rom_name, platform, description, score = result
+    
+    assert game_name == "Turrican II"
+    assert platform == "Commodore 64"
+    assert score == 1.0  # Hash match must be 100%
+
+def test_find_by_hash_not_found(db_manager):
+    """Test non-existent hash."""
+    result = db_manager.find_by_hash("non_existent_hash", hash_type="md5")
+    assert result is None
+
+def test_find_by_hash_invalid_type(db_manager):
+    """Test that invalid hash types raise ValueError (Security check)."""
+    with pytest.raises(ValueError, match="Invalid hash type"):
+        db_manager.find_by_hash("some_hash", hash_type="invalid_type")
+
+# --- Tests for find_by_fuzzy_name ---
+
+def test_find_by_fuzzy_name_high_similarity(db_manager):
+    """Test if a messy filename finds the correct clean game name."""
+    # User has file: "Super Mario.zip" -> Should find "Super Mario Bros."
+    filename = "Super Mario.zip" 
+    
+    result = db_manager.find_by_fuzzy_name(filename, platform="Nintendo Entertainment System")
+    
+    assert result is not None
+    game_name, _, _, _, score = result
+    
+    assert game_name == "Super Mario Bros."
+    assert score > 0.8  # Jaro-Winkler should give a high score for this
+
+def test_find_by_fuzzy_name_with_platform_filter(db_manager):
+    """
+    Test that searching for the same game name in different platforms 
+    returns the correct platform-specific record.
+    """
+    # Searching for 'Turrican' inside Amiga platform
+    result = db_manager.find_by_fuzzy_name("Turrican II.zip", platform="Commodore Amiga")
+    
+    assert result is not None
+    game_name, rom_name, platform, _, _ = result
+    
+    assert game_name == "Turrican II"
+    assert platform == "Commodore Amiga"
+    assert "Disk 1 of 2" in rom_name # Verify it picked the Amiga ROM, not C64
+
+def test_find_by_fuzzy_name_no_match(db_manager):
+    """Test a completely unrelated name."""
+    result = db_manager.find_by_fuzzy_name("Zelda.zip", platform="Commodore 64")
+    # Should be None because Zelda is not in our mock DB for C64
+    assert result is None 
+
+# --- Integration Test (Orchestrator) ---
+
+def test_resolve_game_match_priority(db_manager):
+    """
+    Test that if hash is provided, it takes precedence over fuzzy name.
+    """
+    # We provide a filename that looks like Amiga, but a Hash that belongs to C64.
+    # The system should trust the Hash and return C64.
+    filename = "Turrican_Amiga_Fake_Name.zip"
+    real_c64_hash = "md5_turrican"
+    
+    result = db_manager.resolve_game_match(filename, file_hash=real_c64_hash, hash_type="md5")
+    
+    assert result is not None
+    _, _, platform, _, score = result
+    
+    assert platform == "Commodore 64" # Hash won
+    assert score == 1.0

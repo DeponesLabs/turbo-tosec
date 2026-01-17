@@ -24,6 +24,22 @@
                 "1"
             ]
         },
+        {   // Debug Tests (Pytest - Current File)
+            "name": "Debug Tests (Pytest - Current File)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-s",           // print() çıktılarını görmek için
+                "-v",           // Detaylı çıktı için (verbose)
+                "${file}"       // O an açık olan dosya
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+            "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        },
         { // Debug: Turbo-TOSEC Staged (v2012-04-23)
             "name": "Debug: Turbo-TOSEC Staged (v2012-04-23)",
             "type": "debugpy",
