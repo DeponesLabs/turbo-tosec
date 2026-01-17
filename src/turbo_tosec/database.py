@@ -290,6 +290,61 @@ class DatabaseManager:
             logging.error(error_details)
             raise RuntimeError(error_details) from error
         
+    def find_by_hash(self, file_hash: str, hash_type: str = "md5", platform: Optional[str] = None) -> Optional[Tuple]:
+        """
+        Searches for a game using its cryptographic hash (MD5, CRC, SHA1).
+        Returns the record with a 1.0 (100%) match score if found.
+        """
+        # Validate hash_type to prevent SQL injection via column name
+        valid_hashes = {"md5", "crc", "sha1"}
+        if hash_type not in valid_hashes:
+            raise ValueError(f"Invalid hash type: {hash_type}")
+
+        query = f"SELECT game_name, rom_name, platform, description, {hash_type} FROM roms WHERE {hash_type} = ?"
+        
+        params = [file_hash]
+
+        if platform:
+            query += " AND platform = ?"
+            params.append(platform)
+
+        result = self.conn.execute(query, params).fetchone()
+        
+        # If found, append a perfect score (1.0) to maintain consistency with fuzzy search
+        return (*result, 1.0) if result else None
+
+    def find_by_fuzzy_name(self, filename: str, platform: Optional[str] = None, threshold: float = 0.6) -> Optional[Tuple]:
+        """
+        Searches for a game using Jaro-Winkler string similarity on the game name.
+        Returns the best match if the score is above the threshold.
+        """
+        # Clean the filename: remove extension and underscores
+        clean_name = filename.rsplit('.', 1)[0].replace('_', ' ')
+        
+        query = "SELECT game_name, rom_name, platform, description, jaro_winkler_similarity(game_name, ?) as score FROM roms WHERE score > ?"
+        params = [clean_name, threshold]
+
+        if platform:
+            query += " AND platform = ?"
+            params.append(platform)
+
+        # Order by score descending to get the best match
+        query += " ORDER BY score DESC LIMIT 1"
+
+        result = self.conn.execute(query, params).fetchone()
+        return result if result else None
+
+    def resolve_game_match(self, filename: str, file_hash: Optional[str] = None, hash_type: str = "md5", platform: Optional[str] = None) -> Optional[Tuple]:
+        "Tries to identify the game first by hash, then by fuzzy name."
+        # Attempt High-Precision Hash Match
+        if file_hash:
+            match = self.find_by_hash(file_hash, hash_type, platform)
+            if match:
+                return match
+
+        # Fallback to Fuzzy Name Match
+        return self.find_by_fuzzy_name(filename, platform)
+
     def _build_where_clause(self, filters: Dict[str, str]) -> Tuple[str, List[Any]]:
         """Constructs a safe SQL WHERE clause."""
         conditions = []
