@@ -8,7 +8,7 @@ from turbo_tosec.utils import calculate_file_hash
 @pytest.fixture
 def db_manager():
 
-    db_path = "E:/HOME/Documents/Databases/turbo-tosec/duckdb/tosec-v2025-03-13.duckdb"
+    db_path = "TEST_AREA/tosec-2025-03-13.duckdb"
     db = DatabaseManager(db_path, read_only=True)
     
     try:
