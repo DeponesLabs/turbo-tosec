@@ -91,9 +91,6 @@ def clean_path(path: str) -> str:
     """Normalizes paths for display (removes distinct drive letters if needed)."""
     return os.path.normpath(path)
 
-import hashlib
-# os modülüne artık gerek kalmadı (getsize kullanmadığımız için)
-
 def calculate_file_hash(filepath: str, hash_algorithm: str = "md5", chunk_size: int = 8192) -> str:
     """
     Calculates the hash of a file synchronously.
