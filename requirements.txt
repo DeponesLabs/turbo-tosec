@@ -42,6 +42,5 @@ stack-data==0.6.3
 tornado==6.5.4
 tqdm==4.67.1
 traitlets==5.14.3
--e git+https://github.com/DeponesLabs/turbo-tosec.git@d6eb66eef36bed0a90ed122c5d4744292b1a0897#egg=turbo_tosec
 tzdata==2025.3
 wcwidth==0.2.14
