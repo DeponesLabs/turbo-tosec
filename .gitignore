@@ -45,8 +45,9 @@ TEST_AREA
 # artifact of debugging
 logs/
 
-# for a temporary time, ignore test_resume.py
+# for a temporary time, ignore these test files
 tests/test_resume.py
+tests/test_database.py
 
 # ignore old tosec importer backup
 tosec_importer.old.py
