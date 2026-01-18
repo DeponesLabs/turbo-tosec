@@ -1,3 +1,11 @@
+## [2.3.2](https://github.com/DeponesLabs/turbo-tosec/compare/v2.3.1...v2.3.2) (2026-01-18)
+
+
+### Bug Fixes
+
+* remove unnecessary debug env packages ([d5ee5a5](https://github.com/DeponesLabs/turbo-tosec/commit/d5ee5a5955d91c12a66a47df6230dfe93917d9e6))
+* remove unnecessary debug env packages ([2d02fbf](https://github.com/DeponesLabs/turbo-tosec/commit/2d02fbfd577f145fcae5997d690ddec96ebe721d))
+
 ## [2.3.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.3.0...v2.3.1) (2026-01-18)
 
 
