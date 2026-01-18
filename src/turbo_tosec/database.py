@@ -4,9 +4,10 @@ import platform
 import psutil
 import logging
 import ctypes
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Tuple, Optional, Any, NamedTuple
 import duckdb
-from typing import NamedTuple
+
+from turbo_tosec.domainobjects import TosecDat
 
 class DBConfig(NamedTuple):
     memory: str = "4GB"
@@ -337,16 +338,31 @@ class DatabaseManager:
         result = self.conn.execute(query, params).fetchone()
         return result if result else None
 
-    def resolve_game_match(self, filename: str, file_hash: Optional[str] = None, hash_type: str = "md5", platform: Optional[str] = None) -> Optional[Tuple]:
+    def resolve_game_match(self, filename: str, file_hash: Optional[str] = None, hash_type: str = "md5", platform: Optional[str] = None) -> Optional[TosecDat]:
         "Tries to identify the game first by hash, then by fuzzy name."
+        match = None
+
         # Attempt High-Precision Hash Match
         if file_hash:
             match = self.find_by_hash(file_hash, hash_type, platform)
-            if match:
-                return match
-
-        # Fallback to Fuzzy Name Match
-        return self.find_by_fuzzy_name(filename, platform)
+            if not match:
+                # Fallback to Fuzzy Name Match
+                match = self.find_by_fuzzy_name(filename, platform)
+                
+        tosecDat = None
+        if match:
+            "rom_name, title, platform, category, release_year, description, size, md5, status, system"
+            tosecDat = TosecDat(rom_name=match[0],
+                                title=match[1],
+                                platform=match[2],
+                                category=match[3],
+                                release_year=match[4],
+                                description=match[5],
+                                size=match[6],
+                                md5=match[7],
+                                status=match[8],
+                                system=match[9])
+        return tosecDat
 
     def _build_where_clause(self, filters: Dict[str, str]) -> Tuple[str, List[Any]]:
         """Constructs a safe SQL WHERE clause."""

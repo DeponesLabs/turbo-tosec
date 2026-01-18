@@ -16,6 +16,7 @@ class TosecDat:
     md5: str = ""
     sha1: str = ""
     status: str = ""           # [!], [b] etc.
+    system: str = ""
 
     @property
     def human_readable_size(self) -> str:
