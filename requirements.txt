@@ -1,7 +1,9 @@
 asttokens==3.0.1
+build==1.4.0
+click==8.3.1
 colorama==0.4.6
 comm==0.2.3
-contourpy>=1.1.0
+contourpy==1.3.3
 cycler==0.12.1
 debugpy==1.8.19
 decorator==5.2.1
@@ -10,7 +12,7 @@ executing==2.2.1
 fonttools==4.61.1
 iniconfig==2.3.0
 ipykernel==7.1.0
-ipython>=8.30.0
+ipython==9.8.0
 ipython_pygments_lexers==1.1.1
 jedi==0.19.2
 jupyter_client==8.7.0
@@ -24,6 +26,7 @@ packaging==25.0
 pandas==2.3.3
 parso==0.8.5
 pillow==12.0.0
+pip-tools==7.5.2
 platformdirs==4.5.1
 pluggy==1.6.0
 prompt_toolkit==3.0.52
@@ -32,15 +35,19 @@ pure_eval==0.2.3
 pyarrow==22.0.0
 Pygments==2.19.2
 pyparsing==3.2.5
+pyproject_hooks==1.2.0
 pytest==9.0.1
 python-dateutil==2.9.0.post0
 pytz==2025.2
 pyzmq==27.1.0
 seaborn==0.13.2
+setuptools==80.9.0
 six==1.17.0
 stack-data==0.6.3
 tornado==6.5.4
 tqdm==4.67.1
 traitlets==5.14.3
+-e git+https://github.com/DeponesLabs/turbo-tosec.git@dc521be9e04a6a9f3a484b7f0506f0f9a6725096#egg=turbo_tosec
 tzdata==2025.3
 wcwidth==0.2.14
+wheel==0.45.1
