@@ -10,7 +10,7 @@ executing==2.2.1
 fonttools==4.61.1
 iniconfig==2.3.0
 ipykernel==7.1.0
-ipython==9.8.0
+ipython>=8.30.0
 ipython_pygments_lexers==1.1.1
 jedi==0.19.2
 jupyter_client==8.7.0
