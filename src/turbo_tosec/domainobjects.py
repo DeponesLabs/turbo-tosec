@@ -17,6 +17,7 @@ class TosecDat:
     sha1: str = ""
     status: str = ""           # [!], [b] etc.
     system: str = ""
+    score: float = 0.0          # for fuzzy-name searching
 
     @property
     def human_readable_size(self) -> str:
