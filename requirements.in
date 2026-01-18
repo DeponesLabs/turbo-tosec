@@ -1,0 +1,7 @@
+# Temel CLI ve Sistem araçları
+click
+tqdm
+colorama
+psutil
+duckdb
+pyarrow

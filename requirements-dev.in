@@ -1,0 +1,5 @@
+pytest
+pip-tools
+build
+pyinstaller
+ipython
