@@ -1,3 +1,10 @@
+## [2.3.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.3.0...v2.3.1) (2026-01-18)
+
+
+### Bug Fixes
+
+* trigger new release to fix linux build environment ([5840e05](https://github.com/DeponesLabs/turbo-tosec/commit/5840e05d301078cf9db77bc36ac2ba22a8c57d87))
+
 # [2.3.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.2.1...v2.3.0) (2026-01-18)
 
 
