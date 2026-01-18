@@ -300,8 +300,7 @@ class DatabaseManager:
         if hash_type not in valid_hashes:
             raise ValueError(f"Invalid hash type: {hash_type}")
 
-        query = f"SELECT game_name, title, release_year, platform, description, {hash_type} FROM roms WHERE {hash_type} = ?"
-        
+        query = f"SELECT rom_name, title, platform, category, release_year, description, size, md5, status, system, {hash_type} FROM roms WHERE {hash_type} = ?"
         params = [file_hash]
 
         if platform:
@@ -324,8 +323,8 @@ class DatabaseManager:
         """
         # Clean the filename: remove extension and underscores
         clean_name = filename.rsplit('.', 1)[0].replace('_', ' ')
-        
-        query = "SELECT dat_filename, game_name, title, release_year, platform, description, jaro_winkler_similarity(game_name, ?) as score FROM roms WHERE score > ?"
+
+        query = "SELECT rom_name, title, platform, category, release_year, description, size, md5, status, system, jaro_winkler_similarity(game_name, ?) as score FROM roms WHERE score > ?"
         params = [clean_name, threshold]
 
         if platform:
