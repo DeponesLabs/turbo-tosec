@@ -1,3 +1,15 @@
+# [2.3.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.2.1...v2.3.0) (2026-01-18)
+
+
+### Bug Fixes
+
+* **database:** fix column names in hybrid game matching strategy, fix tests ([d645f76](https://github.com/DeponesLabs/turbo-tosec/commit/d645f76cff1217526fb7dd45778851d0247a6378))
+
+
+### Features
+
+* **database:** implement hybrid game matching strategy ([056c65c](https://github.com/DeponesLabs/turbo-tosec/commit/056c65c47128c36ade33aec47de4b8735b11dfe6))
+
 ## [2.2.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.2.0...v2.2.1) (2026-01-04)
 
 
