@@ -2,8 +2,8 @@
     "FSharp.suggestGitignore": false,
     "github.copilot.enable": 
     {
-        "*": false,
-        "plaintext": false,
+        "*": true,
+        "plaintext": true,
         "markdown": false,
         "scminput": false
     },
