@@ -36,8 +36,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install dependencies (Node.js)
+        env:
+          HUSKY: 0  # Disable husky hooks in CI environment
+        run: npm ci # Using 'npm ci' is safer for CI as it respects package-lock.json
 
       - name: Run semantic-release
         run: npx semantic-release
