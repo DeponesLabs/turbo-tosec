@@ -32,7 +32,7 @@ class Console:
         # Width calculation for centering
         cols, _ = shutil.get_terminal_size((80, 20))
         
-        logo = f"""{Console.OKBLUE}{Console.BOLD}
+        logo = rf"""{Console.OKBLUE}{Console.BOLD}
    ______            __               ______
   /_  __/_  ______  / /_  ____       /_  __/___  ________  _____
    / / / / / / __ \/ __ \/ __ \_______/ / / __ \/ ___/ _ \/ ___/
