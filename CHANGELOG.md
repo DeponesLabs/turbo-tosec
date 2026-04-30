@@ -1,3 +1,20 @@
+# [2.4.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.3.2...v2.4.0) (2026-04-30)
+
+
+### Bug Fixes
+
+* add psutil to pyproject.toml ([5ba69d4](https://github.com/DeponesLabs/turbo-tosec/commit/5ba69d4aec59a4f6e6d912f98ca68adf6365c3d5))
+* adjust CI configuration and force patch version bump ([1a01b93](https://github.com/DeponesLabs/turbo-tosec/commit/1a01b932ac04636a955da4a442dbfd7bafb54172))
+
+
+### Features
+
+* add score field to TosecDat dataclass ([edc333d](https://github.com/DeponesLabs/turbo-tosec/commit/edc333d9ebb35369d5c28fc1f197e523bb20cccd))
+* add slots to TosecDat dataclass ([b866d22](https://github.com/DeponesLabs/turbo-tosec/commit/b866d223fd9f29bc75cfdcf4c918caf43ff3bc39))
+* add TosecDat class and domainobjects module ([03c31a0](https://github.com/DeponesLabs/turbo-tosec/commit/03c31a0e556d4adc3a93990ca37d94b57ef040cf))
+* update columns fetched from tosec duckdb ([39d6a16](https://github.com/DeponesLabs/turbo-tosec/commit/39d6a167cf8d7219abf49455298add9a32ebf6fb))
+* update database.DatabaseManager.resolve_game_match retval ([391d636](https://github.com/DeponesLabs/turbo-tosec/commit/391d636075e4812996c168607cf93c62cc0c181d))
+
 ## [2.3.2](https://github.com/DeponesLabs/turbo-tosec/compare/v2.3.1...v2.3.2) (2026-01-18)
 
 
