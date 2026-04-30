@@ -12,7 +12,8 @@ authors = [
 dependencies = [
     "duckdb",
     "tqdm",
-    "pyarrow>=14.0.0"
+    "pyarrow>=14.0.0",
+    "psutil"
 ]
 requires-python = ">=3.10"
 
