@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Callable, Dict
 import threading
 import concurrent.futures
 import time
@@ -14,7 +14,8 @@ import xml.etree.ElementTree as ET
 
 from turbo_tosec.database import DatabaseManager
 from turbo_tosec.parser import InMemoryParser, TurboParser, parse_game_info
-from turbo_tosec.utils import Console
+from turbo_tosec.state import IngestionStateEvaluator
+from turbo_tosec.utils import Console, extract_tosec_version
 
 def worker_parse_task(file_path: str) -> List[Tuple]:
     """
@@ -33,21 +34,11 @@ def worker_staged_task(file_path: str, temp_dir: str) -> dict:
         return result_stats
     except Exception as error:
         raise RuntimeError(f"Error in {os.path.basename(file_path)}: {error}")
-    
-def get_dat_files(root_dir: str) -> List[str]:
-    """Finds all .dat files in the specified directory and its subdirectories."""
-    dat_files = []
-    for root, _, files in os.walk(root_dir):
-        for file in files:
-            if file.lower().endswith(".dat"):
-                dat_files.append(os.path.join(root, file))
-                
-    return dat_files
 
 class ImportSession:
     """
-    Orchestrates the ingestion workflow.
-    Can be used via CLI (passing args) or as a Library (passing explicit params).
+    Orchestrates the ingestion workflow for TOSEC DAT files.
+    Encapsulates file discovery, parsing, and database insertion strategies.
     Ingests with one of the 3 strategies:
     1. InMemoryMode
     2. StagedMode
@@ -55,7 +46,19 @@ class ImportSession:
     """
     def __init__(self, db_manager: DatabaseManager, args=None,  # Optional for CLI
                  workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
+        """
+        Initializes the import session with the necessary configuration and dependencies.
         
+        Args:
+            db_manager (DatabaseManager): An active DatabaseManager instance.
+            args (Any): CLI arguments for overriding defaults.
+            workers (int): Number of CPU workers for parallel processing.
+            temp_dir (str): Directory path for staging temporary parquet chunks.
+            batch_size (int): Threshold for flushing memory buffer to the database.
+            
+        Raises:
+            ValueError: If neither db_manager nor db_path is provided.
+        """
         self.args = args
         self.db = db_manager
         self.buffer = []
@@ -64,14 +67,10 @@ class ImportSession:
         self.stop_monitor = threading.Event()
         self.executor = None # To track active executor for cleanup
 
-        # Strategy Selection
-        # ----------------------------------------------------------
-        # StagedMode: Uses disk as buffer (safest for huge datasets)
-        self.staged = getattr(args, 'staged', False) 
-        # DirectMode: Uses RAM buffer + Zero Copy (fastest)
-        self.direct = getattr(args, 'direct', False)
-        # LegacyMode
-        self.legacy = getattr(args, 'legacy', False)
+        # *************** Strategy Selection ***************
+        self.staged = getattr(args, 'staged', False) if args else False     # StagedMode: Uses disk as buffer (safest for huge datasets)
+        self.direct = getattr(args, 'direct', False) if args else False     # DirectMode: Uses RAM buffer + Zero Copy (fastest)
+        self.legacy = getattr(args, 'legacy', False) if args else False     # LegacyMode
         
         # If CLI arguments are provided, use them; otherwise, use manual parameters
         if args:
@@ -83,70 +82,105 @@ class ImportSession:
             self.temp_dir = temp_dir    # Temp dir is only relevant for Staged Mode
             self.batch_size = batch_size
         
-        # CPU core limit check
         max_cpu = multiprocessing.cpu_count()
         if self.workers <= 0 or self.workers > max_cpu:
             self.workers = max_cpu
-            
-    # *************************************************************************
-    # LIBRARY API
-    # *************************************************************************
-    def ingest(self, files: List[str], mode: str = 'staged', progress_callback = None) -> dict:
+
+    def _discover_files(self, source_path: str, filters: Optional[List[str]] = None) -> List[str]:
         """
-        High-level entry point for Library/GUI usage.
+        Internally scans the directory for DAT files with optional pattern filtering.
         
         Args:
-            files: List of file paths to process.
-            mode: 'direct' (Recommended), 'staged' (Big Data), 'legacy' (Memory).
-            show_progress: If False, disables tqdm (useful for silent workers).
-            progress_callback: A function(current, total) to handle GUI updates.
-        
+            source_path (str): Root directory for scanning.
+            filters (Optional[List[str]]): List of keywords to include (e.g., ['Amiga', 'Commodore']).
+            
         Returns:
-            dict: {'total_roms': int, 'errors': int}
+            List[str]: List of resolved absolute file paths.
         """
-        # Return immediately if the file list is empty
-        if not files:
-            logging.warning("No files provided for ingestion.")
+        discovered = []
+        for root, _, files in os.walk(source_path):
+            for file in files:
+                if not file.lower().endswith(".dat"):
+                    continue
+                
+                # Apply optional filtering logic
+                if filters and not any(f.lower() in file.lower() for f in filters):
+                    continue
+                    
+                discovered.append(os.path.join(root, file))
+                
+        return discovered
+    
+    def ingest(self, source_path: str, mode: str = 'direct', resume: bool = False, force_new: bool = False,
+        filters: Optional[List[str]] = None, progress_callback: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """
+        Executes the high-level ingestion pipeline, managing database state autonomously.
+        
+        Args:
+            source_path (str): The root directory containing TOSEC DAT metadata files.
+            mode (str): Execution strategy ('direct', 'staged', or 'legacy').
+            resume (bool): Instructs the engine to skip previously processed files.
+            force_new (bool): Instructs the engine to wipe the existing database prior to ingestion.
+            filters (Optional[List[str]]): Keywords to filter DAT files.
+            progress_callback (Optional[Callable]): Callback mechanism for UI thread synchronization.
+            
+        Returns:
+            Dict[str, int]: Aggregated ingestion statistics including total ROMs and errors.
+        """
+        # Discover Context
+        all_files = self._discover_files(source_path, filters=filters)
+        if not all_files:
             return {'total_roms': 0, 'errors': 0}
-
-        # Reset statistics (A new task is starting)
+        
+        # Extract State Information
+        input_version = extract_tosec_version(source_path)
+        db_version = self.db.get_metadata_value('tosec_version')
+        processed_set = self.db.get_processed_files() or set()
+        
+        # Formulate Action Plan via Evaluator Composition
+        evaluator = IngestionStateEvaluator()
+        
+        plan = evaluator.evaluate(all_discovered_files=all_files, processed_files=processed_set, current_db_version=db_version,
+                                  input_version=input_version, resume_requested=resume, force_new_requested=force_new)
+        
+        # Handle Evaluator Directives
+        if plan.error_message:
+            raise RuntimeError(plan.error_message)
+        
+        if plan.wipe_required:
+            self.db.wipe_database()
+            self.db.set_metadata_value('tosec_version', input_version)
+        elif not db_version:
+            # First time ingestion
+            self.db.set_metadata_value('tosec_version', input_version)
+            
+        files_to_process = plan.files_to_process
+        if not files_to_process:
+            return {'total_roms': 0, 'errors': 0}
+        
         self.total_roms = 0
         self.error_count = 0
         
-        # Metrics
-        total_bytes = sum(os.path.getsize(f) for f in files)
+        total_bytes = sum(os.path.getsize(f) for f in files_to_process)
         
-        # Preparing for Staged mode
         if mode == 'staged':
             self._prepare_temp_dir()
 
-        # GUI entegrasyonunda buradaki tqdm'i override etmek gerekebilir
-        # ama şimdilik console output varsayıyoruz.
-        
         try:
             if mode == 'direct':
-                # Direct mode genellikle GUI için en iyisidir (Hızlı geri bildirim)
-                self._run_direct_mode(files, total_bytes, 0, progress_callback)
-            
+                self._run_direct_mode(files_to_process, total_bytes, 0, progress_callback)
             elif mode == 'staged':
-                self._run_staged_mode(files, self.workers, total_bytes, 0, progress_callback)
-                
+                self._run_staged_mode(files_to_process, self.workers, total_bytes, 0, progress_callback)
             elif mode == 'legacy':
-                self._run_in_memory_mode(files, self.workers, total_bytes, 0, progress_callback)
-            
+                self._run_in_memory_mode(files_to_process, self.workers, total_bytes, 0, progress_callback)
             else:
-                raise ValueError(f"Unknown ingestion mode: {mode}")
-                
+                raise ValueError(f"Unsupported ingestion mode requested: {mode}")
         finally:
-            # Clean-up
             if mode == 'staged' and os.path.exists(self.temp_dir):
                 shutil.rmtree(self.temp_dir)
         
         return {'total_roms': self.total_roms, 'errors': self.error_count}
     
-    # *************************************************************************
-    # CLI API
-    # *************************************************************************
     def run(self, files_to_process: List[str]):
         """
         Main execution entry point.

@@ -98,93 +98,48 @@ def run_scan_mode(args, log_filename: str):
     """
     Orchestrates the scanning process using ImportSession.
     """
-    # 1. Setting up logging
     setup_logging(log_filename)
+    check_system_resources(args.workers, args.db_threads)
+
+    # Determine ingestion mode based on flags
+    mode = 'legacy'
+    if args.direct:
+        mode = 'direct'
+    elif args.staged:
+        mode = 'staged'
 
     start_time = time.time()
     
-    # 2. Scan for .dat files
-    print(f"Scanning directory: {args.input}...")
-    all_dat_files = get_dat_files(args.input)
-    
-    if not all_dat_files:
-        print("No .dat files found. Exiting.")
-        return
-
-    # 3. Detect TOSEC Version
-    current_version = extract_tosec_version(args.input)
-    print(f"Detected Input Version: {current_version}")
-
     db_config = DBConfig(turbo=(args.workers > 1), memory=args.db_memory, threads=args.db_threads)
-    # Database Context Manager for safe handling (auto connect/close)
+    
     with DatabaseManager(args.output, config=db_config) as db:
-        
-        # Resume / Wipe Decision Logic
-        resume_mode = False
-        db_version = db.get_metadata_value('tosec_version')
-        
-        # A. Version Mismatch Check
-        if db_version and db_version != current_version:
-            print(f"\nWARNING: Version Mismatch! (DB: {db_version} vs Input: {current_version})")
-            
-            if args.force_new:
-                print("--force-new detected. Wiping old database.")
-                resume_mode = False
-            else:
-                q = input("Start FRESH and wipe old database? (Required for new version) [y/N]: ").lower()
-                if q != 'y': 
-                    print("Operation aborted.")
-                    return
-                resume_mode = False
-        
-        # B. Version is compatible, ask about resuming
-        else:
-            processed_files = db.get_processed_files()
-            if processed_files:
-                if args.resume:
-                    resume_mode = True
-                elif args.force_new:
-                    resume_mode = False
-                else:
-                    print(f"\nFound {len(processed_files)} processed files.")
-                    q = input("[R]esume or [S]tart fresh? [R/s]: ").lower()
-                    resume_mode = (q != 's')
-        
-        files_to_process = []
-        
-        if not resume_mode:
-            #Start from scratch
-            print("Wiping database...")
-            db.wipe_database()
-            db.set_metadata_value('tosec_version', current_version)
-            files_to_process = all_dat_files
-        else:
-            # Resume from last state
-            print("Calculating resume list...")
-            processed_set = db.get_processed_files()
-            files_to_process = [f for f in all_dat_files if os.path.basename(f) not in processed_set]
-            
-            skipped = len(all_dat_files) - len(files_to_process)
-            print(f"Resuming: {skipped} files skipped. {len(files_to_process)} remaining.")
-
-        if not files_to_process:
-            print("Nothing to do. All files processed.")
-            return
-
+        # Apply thread configuration to the database engine
         db.configure_threads(args.workers)
         
-        # Start Session
-        session = ImportSession(db_manager=db, args=args)
-        total_roms, error_count = session.run(files_to_process)
+        # Initialize the session strictly with the DatabaseManager
+        session = ImportSession(db_manager=db)
+        
+        print(f"\nInitializing ingestion sequence for: {args.input}")
+        
+        # The session autonomously evaluates state, resumes, or wipes based on the action plan
+        stats = session.ingest(
+            source_path=args.input,
+            mode=mode,
+            resume=args.resume,
+            force_new=args.force_new
+        )
 
     end_time = time.time()
     duration = end_time - start_time
+    total_roms = stats.get('total_roms', 0)
+    error_count = stats.get('errors', 0)
     
     print("\nTransaction completed!")
     print(f"Database: {args.output}")
     print(f"Total ROMs: {total_roms:,}")
     print(f"Elapsed Time: {duration:.2f}s")
     
+    # Log Handling Logic
     if error_count > 0:
         print(f"\nWARNING: {error_count} files failed.")
         if args.open_log: 
@@ -192,8 +147,10 @@ def run_scan_mode(args, log_filename: str):
     else:
         logging.shutdown()
         if os.path.exists(log_filename): 
-            try: os.remove(log_filename)
-            except: pass
+            try: 
+                os.remove(log_filename)
+            except OSError: 
+                pass
         print("Clean import.")
 
 def run_parquet_mode(args):
@@ -328,37 +285,30 @@ def main():
         print("=" * 60)
         
         if isinstance(error, OSError) and "Disk is full" in error_msg:
-            print(f"Error: Disk Storage Full")
-            if args.staged:
+            print("Error: Disk Storage Full")
+            if getattr(args, 'staged', False):
                 print("Tip: --staged mode uses disk space for temp files. Check --temp-dir drive.")
-            
         elif isinstance(error, (RuntimeError, MemoryError)):
-            print(f"Error: System Resources Exhausted")
-            print(f"Details: {error}")
-            if not args.staged:
-                print(f"Tip: System ran out of RAM. Try using '--staged' mode to offload to disk.")
-            else:
-                print(f"Tip: Try reducing --workers (current: {args.workers}).")
-        
+            print("Error: System Resources Exhausted")
+            if not getattr(args, 'staged', False):
+                print("Tip: System ran out of RAM. Try using '--staged' mode to offload to disk.")
         else:
-            print(f"Error: {error}")
             print("Tip: Check the log file for technical details.")
         
         print("-" * 60)
         logging.shutdown()
             
-        if args.open_log:
+        if getattr(args, 'open_log', False) and log_filename:
             print(f"Opening log file: {log_filename}")
             try:
                 open_file_with_default_app(log_filename)
             except Exception as open_err:
                 print(f"Could not open log file automatically: {open_err}")
-        else:
+        elif log_filename:
             print(f"Log file saved to: {os.path.abspath(log_filename)}")
             
         sys.exit(1)
         
 if __name__ == "__main__":
-    
     freeze_support() # Missing freeze_support() causes "arguments required" loop
     main()

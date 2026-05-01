@@ -151,3 +151,26 @@ def calculate_file_hash_gen(filepath: str, hash_algorithm: str = "md5", chunk_si
 
     # The loop is done. The generator returns the final hash.
     return hasher.hexdigest()
+
+import re
+
+def extract_tosec_version(directory_path: str) -> str:
+    """
+    Extracts the TOSEC version string from a given directory path using regular expressions.
+    
+    The expected pattern follows the standard TOSEC release naming convention,
+    which typically resembles 'TOSEC-vYYYY-MM-DD' (e.g., 'TOSEC-v2023-08-15').
+    
+    Args:
+        directory_path (str): The absolute or relative file system path to be evaluated.
+        
+    Returns:
+        str: The extracted TOSEC version string. Returns 'Unknown' if the pattern is not found.
+    """
+    version_pattern = r"(TOSEC-v\d{4}-\d{2}-\d{2})"
+    match = re.search(version_pattern, directory_path, re.IGNORECASE)
+    
+    if match:
+        return match.group(1)
+        
+    return "Unknown"
