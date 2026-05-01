@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.4.0...v2.5.0) (2026-05-01)
+
+
+### Features
+
+* add Global Exception Handler ([72a108a](https://github.com/DeponesLabs/turbo-tosec/commit/72a108a85558a897fa9b8e903ae1425c5d204d85))
+
 # [2.4.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.3.2...v2.4.0) (2026-04-30)
 
 
