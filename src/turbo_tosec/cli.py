@@ -42,6 +42,7 @@ from multiprocessing import freeze_support
 from turbo_tosec.database import DatabaseManager, DBConfig
 from turbo_tosec.session import ImportSession
 from turbo_tosec.utils import get_dat_files
+from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, TurboTosecBaseError
 from turbo_tosec._version import __version__
 
 def setup_logging(log_file: str):
@@ -197,9 +198,12 @@ def main():
     parser_scan.add_argument("--temp-dir", default="temp_chunks", help="Directory for temporary chunk files (used in --staged mode).")
     
     # Flags
-    parser_scan.add_argument("--resume", action="store_true", help="Automatically resume if database exists.")
-    parser_scan.add_argument("--force-new", action="store_true", help="Force overwrite existing database.")
     parser_scan.add_argument("--no-open-log", action="store_false", dest="open_log", default=True, help="Do NOT automatically open the log file if errors occur.")
+    
+    # Mutually Exclusive Group
+    state_group = parser_scan.add_mutually_exclusive_group()
+    state_group.add_argument("--resume", action="store_true", help="Automatically resume if database exists.")
+    state_group.add_argument("--force-new", action="store_true", help="Force overwrite existing database.")
  
     # Parquet Command (Import/Export)
     parser_parquet = subparsers.add_parser("parquet", help="Import/Export data using Parquet files.")
@@ -276,6 +280,20 @@ def main():
     except KeyboardInterrupt:
         print("\n  Process interrupted by user.")
         return
+    
+    except ConflictingFlagsError as conflict_err:
+        print(f"\n  [CONFIGURATION ERROR] {conflict_err}")
+        print("  Tip: Remove either --resume or --force-new from your command.")
+        sys.exit(1)
+        
+    except VersionMismatchError as version_err:
+        print(f"\n  [VERSION CONFLICT] {version_err}")
+        print("  Tip: If you wish to proceed and delete the old data, append --force-new to your command.")
+        sys.exit(1)
+        
+    except TurboTosecBaseError as base_err:
+        print(f"\n  [ENGINE ERROR] {base_err}")
+        sys.exit(1)
     
     except Exception as error:
         logging.critical(f"FATAL ERROR: {str(error)}", exc_info=True)

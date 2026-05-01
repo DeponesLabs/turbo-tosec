@@ -144,9 +144,6 @@ class ImportSession:
                                   input_version=input_version, resume_requested=resume, force_new_requested=force_new)
         
         # Handle Evaluator Directives
-        if plan.error_message:
-            raise RuntimeError(plan.error_message)
-        
         if plan.wipe_required:
             self.db.wipe_database()
             self.db.set_metadata_value('tosec_version', input_version)
