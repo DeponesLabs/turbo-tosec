@@ -1,33 +1,3 @@
-"""
-Turbo-TOSEC: High-Performance TOSEC DAT Importer
-================================================
-
-This module acts as the Command Line Interface (CLI) entry point.
-It parses arguments and orchestrates the ingestion process using the
-selected strategy (InMemory, Staged, or Direct).
-
-Architecture & Ingestion Strategies
------------------------------------
-1.  **InMemoryMode (Default):**
-    - Loads entire XML into RAM (DOM Parsing).
-    - Best for strictly validating small/medium collections.
-
-2.  **StagedMode (--staged):**
-    - XML Stream -> Parquet Files (Disk) -> Bulk Load to DB.
-    - Formerly known as "Streaming".
-    - Best for massive datasets, low RAM usage, and safety (checkpoints).
-
-3.  **DirectMode (--direct):**
-    - XML Stream -> Arrow Buffer (RAM) -> Zero-Copy Insert to DB.
-    - The "Fastest" path. Minimal Disk I/O, High Throughput.
-
-Usage:
-    python tosec_importer.py scan -i "path/to/dats" -w 8 --direct
-    python tosec_importer.py scan -i "path/to/dats" --staged
-    
-Author: Depones Labs
-License: GPL v3
-"""
 import os
 import re
 import sys
@@ -41,7 +11,6 @@ from multiprocessing import freeze_support
 
 from turbo_tosec.database import DatabaseManager, DBConfig
 from turbo_tosec.session import ImportSession
-from turbo_tosec.utils import get_dat_files
 from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, TurboTosecBaseError
 from turbo_tosec._version import __version__
 
@@ -96,9 +65,7 @@ def check_system_resources(workers, db_threads):
         print(f"Resource check skipped: {e}")
         
 def run_scan_mode(args, log_filename: str):
-    """
-    Orchestrates the scanning process using ImportSession.
-    """
+    
     setup_logging(log_filename)
     check_system_resources(args.workers, args.db_threads)
 
@@ -114,21 +81,11 @@ def run_scan_mode(args, log_filename: str):
     db_config = DBConfig(turbo=(args.workers > 1), memory=args.db_memory, threads=args.db_threads)
     
     with DatabaseManager(args.output, config=db_config) as db:
-        # Apply thread configuration to the database engine
+        
         db.configure_threads(args.workers)
-        
-        # Initialize the session strictly with the DatabaseManager
         session = ImportSession(db_manager=db)
-        
         print(f"\nInitializing ingestion sequence for: {args.input}")
-        
-        # The session autonomously evaluates state, resumes, or wipes based on the action plan
-        stats = session.ingest(
-            source_path=args.input,
-            mode=mode,
-            resume=args.resume,
-            force_new=args.force_new
-        )
+        stats = session.ingest(source_path=args.input, mode=mode, resume=args.resume, force_new=args.force_new)
 
     end_time = time.time()
     duration = end_time - start_time
@@ -140,7 +97,6 @@ def run_scan_mode(args, log_filename: str):
     print(f"Total ROMs: {total_roms:,}")
     print(f"Elapsed Time: {duration:.2f}s")
     
-    # Log Handling Logic
     if error_count > 0:
         print(f"\nWARNING: {error_count} files failed.")
         if args.open_log: 
@@ -166,15 +122,14 @@ def run_parquet_mode(args):
 
 def main():
     
-    # Backward Compatibility Hack
     # If no subcommand given, and not asking for help/version, add 'scan' as default command.
     if len(sys.argv) > 1 and sys.argv[1] not in ['scan', 'parquet', '--help', '-h', '--version', '-v', '--about']:
         sys.argv.insert(1, 'scan')    
     
     parser = argparse.ArgumentParser(description="High-performance TOSEC DAT importer using DuckDB.")
     
-    # Global arguments (may apply to all commands)
-        # About & Version
+    ''' Global arguments (may apply to all commands) '''
+    # About & Version
     parser.add_argument("--about", action="store_true", help="Show program information, philosophy, and safety defaults.")
     parser.add_argument("--version", "-v", action="version", version=f"{__version__}")
 
@@ -188,7 +143,7 @@ def main():
     parser_scan.add_argument("--workers", "-w", type=int, default=1, help="Number of worker threads (Default: 1). Tip: Use 0 to auto-detect CPU count.")
     parser_scan.add_argument("--batch-size", "-b", type=int, default=1000, help="Number of rows to insert per batch transaction (Default: 1000).")
     
-    # Strategy Selection
+    # Strategy Selection, Mutually Exclusive Group
     strategy_group = parser_scan.add_mutually_exclusive_group()
     
     strategy_group.add_argument("--staged", action="store_true", help="[Strategy] Staged Mode (Batch/ETL). XML -> Parquet (Disk) -> DB. Safest for huge sets, supports checkpoints.")
@@ -200,7 +155,7 @@ def main():
     # Flags
     parser_scan.add_argument("--no-open-log", action="store_false", dest="open_log", default=True, help="Do NOT automatically open the log file if errors occur.")
     
-    # Mutually Exclusive Group
+    # Resume or New, Mutually Exclusive Group
     state_group = parser_scan.add_mutually_exclusive_group()
     state_group.add_argument("--resume", action="store_true", help="Automatically resume if database exists.")
     state_group.add_argument("--force-new", action="store_true", help="Force overwrite existing database.")
