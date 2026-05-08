@@ -156,7 +156,7 @@ class DatabaseManager:
         except Exception as error:
             print(f"Error wiping database: {error}")
 
-    def insert_batch(self, buffer: List[Tuple]):
+    def insert_batch(self, buffer: List[Tuple]) -> None:
         """Inserts a batch of ROMs and marks their files as processed."""
         if not buffer:
             return
