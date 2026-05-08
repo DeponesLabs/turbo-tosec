@@ -37,15 +37,11 @@ def worker_staged_task(file_path: str, temp_dir: str) -> dict:
 
 class ImportSession:
     """
-    Orchestrates the ingestion workflow for TOSEC DAT files.
+    Manages the ingestion workflow for TOSEC DAT files.
     Encapsulates file discovery, parsing, and database insertion strategies.
-    Ingests with one of the 3 strategies:
-    1. InMemoryMode
-    2. StagedMode
-    3. DirectMode
+    Ingests with one of the 3 strategies: InMemoryMode, StagedMode, DirectMode
     """
-    def __init__(self, db_manager: DatabaseManager, args=None,  # Optional for CLI
-                 workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
+    def __init__(self, db_manager: DatabaseManager, args=None, workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
         """
         Initializes the import session with the necessary configuration and dependencies.
         
@@ -79,10 +75,11 @@ class ImportSession:
             self.batch_size = getattr(args, 'batch_size', batch_size)
         else:
             self.workers = workers
-            self.temp_dir = temp_dir    # Temp dir is only relevant for Staged Mode
+            self.temp_dir = temp_dir    # temp_dir is only relevant for 'Staged Mode'
             self.batch_size = batch_size
         
         max_cpu = multiprocessing.cpu_count()
+        
         if self.workers <= 0 or self.workers > max_cpu:
             self.workers = max_cpu
 
@@ -99,15 +96,15 @@ class ImportSession:
         """
         discovered = []
         for root, _, files in os.walk(source_path):
-            for file in files:
-                if not file.lower().endswith(".dat"):
+            for f in files:
+                if not f.lower().endswith(".dat"):
                     continue
                 
                 # Apply optional filtering logic
-                if filters and not any(f.lower() in file.lower() for f in filters):
+                if filters and not any(f.lower() in f.lower() for f in filters):
                     continue
                     
-                discovered.append(os.path.join(root, file))
+                discovered.append(os.path.join(root, f))
                 
         return discovered
     
@@ -195,12 +192,10 @@ class ImportSession:
         
         return stats['total_roms'], stats['errors']
 
-    # Strategy 1: In-memory
+    # Strategy: In-memory
     def _run_in_memory_mode(self, files, workers, total_bytes, initial_bytes, progress_callback=None):
         
-        with UniversalProgress(total=total_bytes, initial=initial_bytes, 
-                               desc="Direct Ingestion", callback=progress_callback) as pbar:
-            
+        with UniversalProgress(total=total_bytes, initial=initial_bytes, desc="Direct Ingestion", callback=progress_callback) as pbar:
             self._start_monitor(pbar)
             if workers < 2:
                 self._run_serial(files, pbar)
@@ -211,19 +206,19 @@ class ImportSession:
         
         self._flush_buffer() # Write any remaining data
 
-    # Strategy 2: Staged 
+    # Strategy: Staged 
     def _run_staged_mode(self, files, workers, total_bytes, initial_bytes, progress_callback=None):
         # Parse -> Parquet Files -> Bulk Import
-        with UniversalProgress(total=total_bytes, initial=initial_bytes, 
-                               desc="Direct Ingestion", callback=progress_callback) as pbar:
-            
+        with UniversalProgress(total=total_bytes, initial=initial_bytes, desc="Direct Ingestion", callback=progress_callback) as pbar:
             self._start_monitor(pbar)
             executor = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
             
             try:
                 self.executor = executor
                 # Call Staging worker
-                future_to_file = {executor.submit(worker_staged_task, f, self.temp_dir): f for f in files}
+                future_to_file = {
+                    executor.submit(worker_staged_task, f, self.temp_dir): f for f in files
+                    }
                 
                 for future in concurrent.futures.as_completed(future_to_file):
                     file_path = future_to_file[future]
@@ -233,7 +228,7 @@ class ImportSession:
                         # Check Skipped Files (for Legacy CMP files)
                         if stats.get("skipped"):
                             tqdm.write(f"{Console.SYM_INFO} Skipped: {stats.get('file')} ({stats.get('reason')})")
-                            # Push the bar amount of the size of the file so it can reach 100%.
+                            # Push the bar amount of the size of the file.
                             try:
                                 pbar.update(os.path.getsize(file_path))
                             except:
@@ -273,31 +268,29 @@ class ImportSession:
         else:
             Console.warning("No ROMs found to import.")
 
-    # Strategy 3: Direct Mode
+    # Strategy: Direct Mode
     def _run_direct_mode(self, files, total_bytes, initial_bytes, progress_callback=None):
         """
         Parses XML stream and injects directly into DuckDB via Arrow.
         Runs in Main Thread to utilize DuckDB's connection safely.
         """
         parser = TurboParser()
-            
-        with UniversalProgress(total=total_bytes, initial=initial_bytes, 
-                               desc="Direct Ingestion", callback=progress_callback) as pbar:
+        with UniversalProgress(total=total_bytes, initial=initial_bytes, desc="Direct Ingestion", callback=progress_callback) as pbar:
             
             for file_path in files:
                 try:
                     arrow_stream = parser.parse_to_arrow_stream(file_path, chunk_size=50000)
                     for arrow_batch in arrow_stream:
-                        # 1. DuckDB'ye Hızlı Kayıt (Zero-Copy sayılır)
-                        # 'arrow_batch' değişkeni SQL sorgusu içinde doğrudan kullanılır.
+                        # Quick Registration to DuckDB (Considered Zero-Copy)
+                        # The 'arrow_batch' variable is used directly within the SQL query.
                         self.db.conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
                         
-                        # 2. İstatistikleri Güncelle
+                        # Update the stats
                         rows_in_batch = arrow_batch.num_rows
                         self.total_roms += rows_in_batch
                         pbar.set_postfix({"ROMs": self.total_roms})
 
-                    # 3. Progress Bar (Dosya boyutu kadar ilerlet)
+                    # Progress Bar (Advance by the file size)
                     try:
                         pbar.update(os.path.getsize(file_path))
                     except:
@@ -307,7 +300,9 @@ class ImportSession:
                     self._handle_error(error, file_path)
             
     def _start_monitor(self, pbar):
+        
         self.stop_monitor.clear()
+        
         def monitor_progress():
             while not self.stop_monitor.is_set():
                 time.sleep(1)
@@ -318,11 +313,13 @@ class ImportSession:
         self.monitor_thread.start()
 
     def _stop_monitor(self):
+        
         self.stop_monitor.set()
         if hasattr(self, 'monitor_thread'):
             self.monitor_thread.join()        
     
     def _flush_buffer(self):
+        
         if self.buffer:
             self.db.insert_batch(self.buffer)
             self.total_roms += len(self.buffer)
@@ -335,7 +332,6 @@ class ImportSession:
             try:
                 data = parser.parse(file_path)
                 self._process_result(data, file_path, pbar)
-                
             except Exception as error:
                 self._handle_error(error, file_path)
 
@@ -349,7 +345,6 @@ class ImportSession:
                 try:
                     data = future.result()
                     self._process_result(data, file_path, pbar)
-                    
                 except Exception as error:
                     self._handle_error(error, file_path)
                     
@@ -364,8 +359,8 @@ class ImportSession:
         stats = {"ROMs": self.total_roms}
         if self.error_count > 0:
             stats["Errors"] = self.error_count
+            
         pbar.set_postfix(stats)
-        
         try:
             pbar.update(os.path.getsize(file_path))
         except:
