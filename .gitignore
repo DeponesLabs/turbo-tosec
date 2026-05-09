@@ -54,3 +54,9 @@ tosec_importer.old.py
 
 # Developer Local Tools (Benchmarks, scripts, etc.)
 dev_benchmark_hook.py
+
+# Working Dia Diagram Files
+diagrams/*.dia~
+
+# Exported Dia Diagram Images
+diagrams/*.png
