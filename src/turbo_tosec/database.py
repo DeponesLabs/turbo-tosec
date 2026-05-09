@@ -52,7 +52,7 @@ class DatabaseManager:
             
         self._load_column_metadata()
     
-    def _apply_performance_settings(self):
+    def _apply_performance_settings(self) -> None:
         """
         Applies memory and thread settings for CLI Ingestion mode.
         Prints status messages to console.
@@ -80,7 +80,7 @@ class DatabaseManager:
             self.conn.close()
             self.conn = None
 
-    def _setup_schema(self, target_conn=None):
+    def _setup_schema(self, target_conn: duckdb.DuckDBPyConnection = None) -> None:
         """Creates tables. Can work on the main connection or a provided temporary one."""
         conn = target_conn or self.conn
         if not conn:
@@ -115,7 +115,7 @@ class DatabaseManager:
         # Metadata
         conn.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
     
-    def _load_column_metadata(self):
+    def _load_column_metadata(self) -> None:
         """Caches column names for the GUI model."""
         try:
             exists = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'").fetchone()[0]
@@ -292,7 +292,7 @@ class DatabaseManager:
         if status_callback:
             status_callback(success_msg)
     
-    def configure_threads(self, thread_count: int):
+    def configure_threads(self, thread_count: int) -> None:
         """Sets the PRAGMA threads for DuckDB."""
         if thread_count > 0:
             self.conn.execute(f"PRAGMA threads={thread_count}")
@@ -453,7 +453,7 @@ class DatabaseManager:
             print(f"RAM detection failed ({error}), defaulting to 2GB.")
             return "2GB"
 
-    def _get_optimal_ram_limit_native(self, limit_str):
+    def _get_optimal_ram_limit_native(self, limit_str: str) -> str:
         """Calculates 75% of total RAM in GB, working on both Windows and Linux."""
         if limit_str == "auto":
             limit_str = "75%"
@@ -506,5 +506,5 @@ class DatabaseManager:
             print(f"RAM detection failed ({error}), defaulting to 2GB.")
             return "2GB"
             
-    def get_appender(self, table_name):
+    def get_appender(self, table_name: str) -> duckdb.DuckDBPyAppender:
         return self.conn.cursor().appender(table_name)
