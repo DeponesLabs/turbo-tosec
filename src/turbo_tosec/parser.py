@@ -264,6 +264,18 @@ class TurboParser:
     def __init__(self):
         pass
     
+    def iterparse(self, file_path: str) -> Iterator[Tuple]:
+        """Auto-detects format and parses the file."""
+        fmt = detect_file_format(file_path)
+        if fmt == 'xml':
+            yield from self._iter_parse_xml(file_path)
+        elif fmt == 'cmp':
+            yield from self._parse_cmp(file_path)
+        else:
+            logging.warning(f"Skipped (Unknown Format): {file_path}")
+            # Unknown format; it doesn't throw an error.
+            return
+    
     def _iter_parse_xml(self, file_path: str) -> Iterator[Tuple]:
             """
             It  performs XML parsing (extraction).
@@ -389,21 +401,6 @@ class TurboParser:
         # 2. Write to Disk
         pq.write_table(table, output_path, compression='snappy')
     
-    def parse(self, file_path: str) -> Iterator[Tuple]:
-        """
-        Polyglot Parser: Detects the dat format and streams the data from the correct parser.
-        """
-        fmt = detect_file_format(file_path)
-        
-        if fmt == 'xml':
-            yield from self._iter_parse_xml(file_path)
-        elif fmt == 'cmp':
-            yield from self._parse_cmp(file_path)
-        else:
-            logging.warning(f"Skipped (Unknown Format): {file_path}")
-            # Unknown format; it doesn't throw an error.
-            return
-    
     def parse_to_arrow_stream(self, file_path: str, chunk_size: int = 50000) -> Iterator[pa.Table]:
         """
         Consumes the self.parse() generator, buffers the tuples, and yields 
@@ -414,7 +411,7 @@ class TurboParser:
         buffer = []
         
         try:
-            record_iterator = self.parse(file_path)
+            record_iterator = self.iterparse(file_path)
             
             for record in record_iterator:
                 # Convert Tuple -> Dict (for PyArrow Table)
@@ -456,7 +453,7 @@ class TurboParser:
         try:
             # 1. Request Data from Source (Pull Model)
             # self.parse will select and run the correct parser.
-            iterator = self.parse(file_path)
+            iterator = self.iterparse(file_path)
             
             for record in iterator:
                 # Convert the incoming Tuple to Dictionary (for PyArrow)
