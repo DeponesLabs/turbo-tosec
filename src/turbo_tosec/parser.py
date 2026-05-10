@@ -53,7 +53,7 @@ def detect_file_format(filepath: str) -> str:
         # If file is unreadable (e.g. binary, no authorization...)
         return 'unknown'
 
-def parse_game_info(game_name) -> Tuple[str, int]:
+def parse_game_info(game_name: str) -> Tuple[str, int]:
     """
     Extracts title and release year from the game name string
     Input: "Dragonstone (1994)(Core)(M3)(Disk 1 of 4)[cr RNX - TRD]"
@@ -61,7 +61,7 @@ def parse_game_info(game_name) -> Tuple[str, int]:
     """
     # Safety Check: XML node might miss the 'name' attribute
     if not game_name:
-        return "Unknown", None
+        return "Unknown", 0
     
     # Title: Take everything up to the first '(' character)
     # If there are no parentheses, take the entire name.
@@ -71,7 +71,7 @@ def parse_game_info(game_name) -> Tuple[str, int]:
     # Year: Capture the format (19xx) or (20xx)
     # Usually the first parenthesis, but look for 4 digits to be sure.
     year_match = re.search(r'\((\d{4})\)', game_name)
-    release_year = int(year_match.group(1)) if year_match else None
+    release_year = int(year_match.group(1)) if year_match else 0
     
     return title, release_year
 
@@ -123,7 +123,7 @@ def _try_parse_size(raw_value: str) -> int:
     # If no match.
     raise ValueError(f"Unknown/Unparsable size format: '{raw_value}'")
 
-def _get_common_info(filepath: str) -> Tuple[str, str, str]:
+def _get_common_info(filepath: str) -> Tuple[str, str, str, str]:
     
     dat_filename = os.path.basename(filepath)
     try:
@@ -157,16 +157,17 @@ class TurboParser:
         ('status', pa.string()), ('system', pa.string())
     ])
     
-    def __init__(self):
+    def __init__(self) -> None:
         pass
     
     def parse(self, filepath: str) -> List[Tuple]:
         """Auto-detects format and parses the file."""
         fmt = detect_file_format(filepath)
         if fmt == 'cmp':
-            return self._iter_parse_cmp(filepath)
+            return self._parse_cmp(filepath)
         elif fmt == 'xml':
             return self._parse_xml(filepath)
+        raise ValueError(f"Unsupported file format: {fmt}")
     
     def iterparse(self, filepath: str) -> Iterator[Tuple]:
         """Auto-detects format and parses the file."""
