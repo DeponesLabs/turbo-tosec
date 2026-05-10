@@ -24,25 +24,25 @@ CRC_PAT = re.compile(r'crc\s+([0-9a-fA-F]+)', re.IGNORECASE)
 MD5_PAT = re.compile(r'md5\s+([0-9a-fA-F]+)', re.IGNORECASE)
 SHA1_PAT = re.compile(r'sha1\s+([0-9a-fA-F]+)', re.IGNORECASE)
 
-def _detect_file_format(file_path: str) -> str:
+def detect_file_format(file_path: str) -> str:
     """
     It determines whether a file is XML or Legacy CMP by reading the file header.
-    It doesn't read the entire file, only the first 1KB. It's fast.
+    It doesn't read the entire file, only the first 1KB for speed.
     
     Returns: 'xml', 'cmp', or 'unknown'
     """
     try:
-        # We're ignoring encoding errors because our goal is simply to read the header. 
+        # Ignore encoding errors because our goal is simply to read the header. 
         # Some older DAT files may contain strange characters.
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             head = f.read(1024).lower().strip()
             
-            # 1. XML Control
-            # Standart XML imzası veya TOSEC/MAME root tag'i var mı?
+            # Check file is XML ?
+            # Look for a standard XML signature or a TOSEC/MAME root tag.
             if "<?xml" in head or "<datafile" in head or "<mame" in head:
                 return 'xml'
             
-            # 2. CMP (Legacy) Control
+            # Check file is CMP
             # ClrMamePro signature or a structure in parentheses?
             if "clrmamepro" in head or "rom (" in head or "game (" in head:
                 return 'cmp'
@@ -50,7 +50,7 @@ def _detect_file_format(file_path: str) -> str:
             return 'unknown'
 
     except Exception:
-        # If the file is unreadable (e.g., if it's binary or if there's no authorization)
+        # If file is unreadable (e.g. binary, no authorization...)
         return 'unknown'
 
 def parse_game_info(game_name) -> Tuple[str, int]:
@@ -63,12 +63,12 @@ def parse_game_info(game_name) -> Tuple[str, int]:
     if not game_name:
         return "Unknown", None
     
-    # 1. Title: Take everything up to the first '(' character)
+    # Title: Take everything up to the first '(' character)
     # If there are no parentheses, take the entire name.
     title_match = re.match(r'^(.*?)(\s*\(|$)', game_name)
     title = title_match.group(1).strip() if title_match else game_name.strip()
     
-    # 2. Year: Capture the format (19xx) or (20xx)
+    # Year: Capture the format (19xx) or (20xx)
     # Usually the first parenthesis, but look for 4 digits to be sure.
     year_match = re.search(r'\((\d{4})\)', game_name)
     release_year = int(year_match.group(1)) if year_match else None
@@ -134,7 +134,7 @@ def _get_common_info(file_path: str) -> Tuple[str, str, str]:
     # Category Parsing Logic
     # Format: "Commodore Amiga - Games - [ADF] (TOSEC...)"
     
-    # 1. Clean extension and TOSEC tag
+    # Clean extension and TOSEC tag
     clean_name = dat_filename.rsplit('.', 1)[0]
     if "(TOSEC" in clean_name:
         clean_name = clean_name.split("(TOSEC")[0].strip()
@@ -154,7 +154,7 @@ class InMemoryParser:
 
     def parse(self, file_path: str) -> List[Tuple]:
         """Auto-detects format and parses the file."""
-        fmt = _detect_file_format(file_path)
+        fmt = detect_file_format(file_path)
         if fmt == 'cmp':
             return self._parse_cmp(file_path)
         elif fmt == 'xml':
@@ -201,7 +201,7 @@ class InMemoryParser:
             logging.error(f"FAILED (Read CMP): {file_path} -> {error}")
             return []
 
-        # --- CMP Parsing Logic (Bracket Counter) ---
+        # CMP Parsing Logic (Bracket Counter)
         game_blocks = []
         iterator = GAME_PATTERN.finditer(content)
         
@@ -264,25 +264,12 @@ class TurboParser:
     def __init__(self):
         pass
     
-    def _parse_xml(self, file_path: str) -> Iterator[Tuple]:
+    def _iter_parse_xml(self, file_path: str) -> Iterator[Tuple]:
             """
             It  performs XML parsing (extraction).
             It uses memory-safe stream processing (iterparse).
             """
-            # Metadata Çıkarımı (Diğer yazılımcının mantığını koruduk)
-            dat_filename = os.path.basename(file_path)
-            try:
-                system_name = os.path.basename(os.path.dirname(file_path))
-            except:
-                system_name = "Unknown"
-            
-            clean_name = dat_filename.rsplit('.', 1)[0]
-            if "(TOSEC" in clean_name:
-                clean_name = clean_name.split("(TOSEC")[0].strip()
-            parts = clean_name.split(' - ', 1)
-            
-            platform = parts[0].strip()
-            category = parts[1].strip() if len(parts) > 1 else "Standard"
+            dat_filename, platform, category, system_name = _get_common_info(file_path)
 
             # XML Stream İşlemi
             try:
@@ -301,22 +288,10 @@ class TurboParser:
                             # Boyut parse etme güvenliği
                             final_size = _try_parse_size(rom.get('size'))
                             
-                            yield (
-                                dat_filename,
-                                platform,
-                                category,
-                                game_name,
-                                title,
-                                release_year,
-                                description,
-                                rom.get('name'),
-                                final_size,
-                                rom.get('crc'),
-                                rom.get('md5'),
-                                rom.get('sha1'),
-                                rom.get('status', 'good'),
-                                system_name
-                            )
+                            yield (dat_filename, platform, category, game_name,
+                                   title, release_year, description, rom.get('name'),
+                                   final_size, rom.get('crc'), rom.get('md5'), 
+                                   rom.get('sha1'), rom.get('status', 'good'), system_name)
                         
                         # Clear RAM
                         elem.clear()
@@ -418,10 +393,10 @@ class TurboParser:
         """
         Polyglot Parser: Detects the dat format and streams the data from the correct parser.
         """
-        fmt = _detect_file_format(file_path)
+        fmt = detect_file_format(file_path)
         
         if fmt == 'xml':
-            yield from self._parse_xml(file_path)
+            yield from self._iter_parse_xml(file_path)
         elif fmt == 'cmp':
             yield from self._parse_cmp(file_path)
         else:
