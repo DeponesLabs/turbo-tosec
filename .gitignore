@@ -60,3 +60,6 @@ diagrams/*.dia~
 
 # Exported Dia Diagram Images
 diagrams/*.png
+
+# mypy cache
+.mypy_cache/
