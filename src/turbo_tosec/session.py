@@ -19,7 +19,7 @@ import pyarrow as pa
 import xml.etree.ElementTree as ET
 
 from turbo_tosec.database import DatabaseManager
-from turbo_tosec.parser import InMemoryParser, TurboParser, parse_game_info
+from turbo_tosec.parser import TurboParser, parse_game_info
 from turbo_tosec.state import IngestionStateEvaluator
 from turbo_tosec.utils import Console, extract_tosec_version
 
@@ -27,7 +27,7 @@ def worker_parse_task(filepath: str) -> List[Tuple]:
     """
     Worker for InMemoryMode: Parses XML completely into RAM (and returns list of tuples).
     """
-    parser = InMemoryParser()
+    parser = TurboParser()
     return parser.parse(filepath)
 
 def worker_staged_task(filepath: str, temp_dir: str) -> dict:
@@ -343,7 +343,7 @@ class ImportSession:
 
     def _run_serial(self, files: List[str], pbar: UniversalProgress) -> None:
         
-        parser = InMemoryParser()
+        parser = TurboParser()
         for filepath in files:
             try:
                 data = parser.parse(filepath)
