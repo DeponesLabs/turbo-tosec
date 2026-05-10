@@ -3,3 +3,4 @@ pip-tools
 build
 pyinstaller
 ipython
+mypy

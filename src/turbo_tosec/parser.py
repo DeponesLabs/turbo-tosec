@@ -24,7 +24,7 @@ CRC_PAT = re.compile(r'crc\s+([0-9a-fA-F]+)', re.IGNORECASE)
 MD5_PAT = re.compile(r'md5\s+([0-9a-fA-F]+)', re.IGNORECASE)
 SHA1_PAT = re.compile(r'sha1\s+([0-9a-fA-F]+)', re.IGNORECASE)
 
-def detect_file_format(file_path: str) -> str:
+def detect_file_format(filepath: str) -> str:
     """
     It determines whether a file is XML or Legacy CMP by reading the file header.
     It doesn't read the entire file, only the first 1KB for speed.
@@ -34,7 +34,7 @@ def detect_file_format(file_path: str) -> str:
     try:
         # Ignore encoding errors because our goal is simply to read the header. 
         # Some older DAT files may contain strange characters.
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
             head = f.read(1024).lower().strip()
             
             # Check file is XML ?
@@ -123,11 +123,11 @@ def _try_parse_size(raw_value: str) -> int:
     # If no match.
     raise ValueError(f"Unknown/Unparsable size format: '{raw_value}'")
 
-def _get_common_info(file_path: str) -> Tuple[str, str, str]:
+def _get_common_info(filepath: str) -> Tuple[str, str, str]:
     
-    dat_filename = os.path.basename(file_path)
+    dat_filename = os.path.basename(filepath)
     try:
-        system_name = os.path.basename(os.path.dirname(file_path))
+        system_name = os.path.basename(os.path.dirname(filepath))
     except:
         system_name = "Unknown"
     
@@ -145,28 +145,48 @@ def _get_common_info(file_path: str) -> Tuple[str, str, str]:
     
     return dat_filename, platform, category, system_name
     
-class InMemoryParser:
+class TurboParser:
     """
     Handles parsing of TOSEC DAT files in both XML and legacy CMP formats.
     """
+    ARROW_SCHEMA: pa.Schema = pa.schema([
+        ('filename', pa.string()), ('platform', pa.string()), ('category', pa.string()),
+        ('game_name', pa.string()), ('title', pa.string()), ('release_year', pa.int32()),
+        ('description', pa.string()), ('rom_name', pa.string()), ('size', pa.int64()),
+        ('crc', pa.string()), ('md5', pa.string()), ('sha1', pa.string()), 
+        ('status', pa.string()), ('system', pa.string())
+    ])
+    
     def __init__(self):
         pass
-
-    def parse(self, file_path: str) -> List[Tuple]:
+    
+    def parse(self, filepath: str) -> List[Tuple]:
         """Auto-detects format and parses the file."""
-        fmt = detect_file_format(file_path)
+        fmt = detect_file_format(filepath)
         if fmt == 'cmp':
-            return self._parse_cmp(file_path)
+            return self._iter_parse_cmp(filepath)
         elif fmt == 'xml':
-            return self._parse_xml(file_path)
-
-    def _parse_xml(self, file_path: str) -> List[Tuple]:
+            return self._parse_xml(filepath)
+    
+    def iterparse(self, filepath: str) -> Iterator[Tuple]:
+        """Auto-detects format and parses the file."""
+        fmt = detect_file_format(filepath)
+        if fmt == 'xml':
+            yield from self._iter_parse_xml(filepath)
+        elif fmt == 'cmp':
+            yield from self._iter_parse_cmp(filepath)
+        else:
+            logging.warning(f"Skipped (Unknown Format): {filepath}")
+            # Unknown format; it doesn't throw an error.
+            return
+    
+    def _parse_xml(self, filepath: str) -> List[Tuple]:
         
         rows = []
-        dat_filename, platform, category, system_name = _get_common_info(file_path)
+        dat_filename, platform, category, system_name = _get_common_info(filepath)
         
         try:
-            tree = ET.parse(file_path)
+            tree = ET.parse(filepath)
             root = tree.getroot()
             
             for game in root.findall('game'):
@@ -184,21 +204,57 @@ class InMemoryParser:
                     ))
                     
         except Exception as error:
-            logging.error(f"FAILED (XML): {file_path} -> {error}")
+            logging.error(f"FAILED (XML): {filepath} -> {error}")
             
         return rows
+    
+    def _iter_parse_xml(self, filepath: str) -> Iterator[Tuple]:
+            """
+            It  performs XML parsing (extraction).
+            It uses memory-safe stream processing (iterparse).
+            """
+            dat_filename, platform, category, system_name = _get_common_info(filepath)
 
-    def _parse_cmp(self, file_path: str) -> List[Tuple]:
+            # XML Stream İşlemi
+            try:
+                context = ET.iterparse(filepath, events=("end",))
+                
+                for event, elem in context:
+                    if elem.tag in ('game', 'machine'):
+                        game_name = elem.get('name')
+                        # Parse game info fonksiyonunun var olduğunu varsayıyoruz
+                        title, release_year = parse_game_info(game_name) 
+                        
+                        desc_node = elem.find('description')
+                        description = desc_node.text if desc_node is not None else ""
+                        
+                        for rom in elem.findall('rom'):
+                            # Boyut parse etme güvenliği
+                            final_size = _try_parse_size(rom.get('size'))
+                            
+                            yield (dat_filename, platform, category, game_name,
+                                   title, release_year, description, rom.get('name'),
+                                   final_size, rom.get('crc'), rom.get('md5'), 
+                                   rom.get('sha1'), rom.get('status', 'good'), system_name)
+                        
+                        # Clear RAM
+                        elem.clear()
+                        
+            except Exception as error:
+                logging.error(f"Failed (XML Stream): {filepath} -> {error}")
+                raise error
+
+    def _parse_cmp(self, filepath: str) -> List[Tuple]:
         
         rows = []
-        dat_filename, platform, category, system_name = _get_common_info(file_path)
+        dat_filename, platform, category, system_name = _get_common_info(filepath)
 
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                 content = f.read()
                 
         except Exception as error:
-            logging.error(f"FAILED (Read CMP): {file_path} -> {error}")
+            logging.error(f"FAILED (Read CMP): {filepath} -> {error}")
             return []
 
         # CMP Parsing Logic (Bracket Counter)
@@ -248,82 +304,19 @@ class InMemoryParser:
                                 system_name
                     ))
         return rows
-
-class TurboParser:
-    """
-    Handles parsing of TOSEC DAT files in both XML and legacy CMP formats.
-    """
-    ARROW_SCHEMA = pa.schema([
-        ('filename', pa.string()), ('platform', pa.string()), ('category', pa.string()),
-        ('game_name', pa.string()), ('title', pa.string()), ('release_year', pa.int32()),
-        ('description', pa.string()), ('rom_name', pa.string()), ('size', pa.int64()),
-        ('crc', pa.string()), ('md5', pa.string()), ('sha1', pa.string()), 
-        ('status', pa.string()), ('system', pa.string())
-    ])
     
-    def __init__(self):
-        pass
-    
-    def iterparse(self, file_path: str) -> Iterator[Tuple]:
-        """Auto-detects format and parses the file."""
-        fmt = detect_file_format(file_path)
-        if fmt == 'xml':
-            yield from self._iter_parse_xml(file_path)
-        elif fmt == 'cmp':
-            yield from self._parse_cmp(file_path)
-        else:
-            logging.warning(f"Skipped (Unknown Format): {file_path}")
-            # Unknown format; it doesn't throw an error.
-            return
-    
-    def _iter_parse_xml(self, file_path: str) -> Iterator[Tuple]:
-            """
-            It  performs XML parsing (extraction).
-            It uses memory-safe stream processing (iterparse).
-            """
-            dat_filename, platform, category, system_name = _get_common_info(file_path)
-
-            # XML Stream İşlemi
-            try:
-                context = ET.iterparse(file_path, events=("end",))
-                
-                for event, elem in context:
-                    if elem.tag in ('game', 'machine'):
-                        game_name = elem.get('name')
-                        # Parse game info fonksiyonunun var olduğunu varsayıyoruz
-                        title, release_year = parse_game_info(game_name) 
-                        
-                        desc_node = elem.find('description')
-                        description = desc_node.text if desc_node is not None else ""
-                        
-                        for rom in elem.findall('rom'):
-                            # Boyut parse etme güvenliği
-                            final_size = _try_parse_size(rom.get('size'))
-                            
-                            yield (dat_filename, platform, category, game_name,
-                                   title, release_year, description, rom.get('name'),
-                                   final_size, rom.get('crc'), rom.get('md5'), 
-                                   rom.get('sha1'), rom.get('status', 'good'), system_name)
-                        
-                        # Clear RAM
-                        elem.clear()
-                        
-            except Exception as error:
-                logging.error(f"Failed (XML Stream): {file_path} -> {error}")
-                raise error
-
-    def _parse_cmp(self, file_path: str) -> Iterator[Tuple]:
+    def _iter_parse_cmp(self, filepath: str) -> Iterator[Tuple]:
         """
         Parses Legacy ClrMamePro (CMP) format efficiently using a generator.
         Instead of loading the whole file, it processes line-by-line.
         """
-        dat_filename, platform, category, system_name = _get_common_info(file_path)
+        dat_filename, platform, category, system_name = _get_common_info(filepath)
 
         current_game_info = {}
         in_game_block = False
 
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                 for line in f:
                     line = line.strip()
                     if not line: 
@@ -343,13 +336,13 @@ class TurboParser:
                         continue
 
                     if in_game_block:
-                        # 1. Parse game data
+                        # Parse game data
                         if line.startswith('name "'):
                             current_game_info['name'] = line.split('"')[1]
                         elif line.startswith('description "'):
                             current_game_info['description'] = line.split('"')[1]
 
-                        # 2. Parse ROM line and yield
+                        # Parse ROM line and yield
                         if line.startswith("rom ("):
                             r_name_match = ROM_NAME_PAT.search(line)
                             if not r_name_match: 
@@ -384,11 +377,11 @@ class TurboParser:
                             )
 
         except Exception as error:
-            logging.error(f"Failed (Read CMP): {file_path} -> {error}")
+            logging.error(f"Failed (Read CMP): {filepath} -> {error}")
             raise error
 
     @staticmethod
-    def _write_chunk_arrow(data: List[Dict], output_dir: str, original_filename: str, index: int, schema: pa.Schema):
+    def _write_chunk_arrow(data: List[Dict], output_dir: str, original_filename: str, index: int, schema: pa.Schema) -> None:
         """Writes a list of dicts to Parquet using pure PyArrow."""
         if not data:
             return
@@ -401,7 +394,7 @@ class TurboParser:
         # 2. Write to Disk
         pq.write_table(table, output_path, compression='snappy')
     
-    def parse_to_arrow_stream(self, file_path: str, chunk_size: int = 50000) -> Iterator[pa.Table]:
+    def parse_to_arrow_stream(self, filepath: str, chunk_size: int = 50000) -> Iterator[pa.Table]:
         """
         Consumes the self.parse() generator, buffers the tuples, and yields 
         ready-to-insert PyArrow Tables. 
@@ -411,7 +404,7 @@ class TurboParser:
         buffer = []
         
         try:
-            record_iterator = self.iterparse(file_path)
+            record_iterator = self.iterparse(filepath)
             
             for record in record_iterator:
                 # Convert Tuple -> Dict (for PyArrow Table)
@@ -434,10 +427,10 @@ class TurboParser:
                 yield pa.Table.from_pylist(buffer, schema=self.ARROW_SCHEMA)
                 
         except Exception as error:
-            logging.error(f"Arrow Stream Error in {file_path}: {error}")
+            logging.error(f"Arrow Stream Error in {filepath}: {error}")
             raise error
         
-    def parse_and_save_chunks(self, file_path: str, output_dir: str, chunk_size: int = 500000) -> Dict:
+    def parse_and_save_chunks(self, filepath: str, output_dir: str, chunk_size: int = 500000) -> Dict[str, int]:
         """
         It retrieves data from the data source (generator), buffers it, and writes it as Parquet. 
         It doesn't know whether the data is XML or CMP.
@@ -445,15 +438,15 @@ class TurboParser:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
             
-        dat_filename = os.path.basename(file_path)
+        dat_filename = os.path.basename(filepath)
         buffer = []
         chunk_index = 0
         total_roms = 0
         
         try:
-            # 1. Request Data from Source (Pull Model)
+            # Request Data from Source (Pull Model)
             # self.parse will select and run the correct parser.
-            iterator = self.iterparse(file_path)
+            iterator = self.iterparse(filepath)
             
             for record in iterator:
                 # Convert the incoming Tuple to Dictionary (for PyArrow)
@@ -468,18 +461,18 @@ class TurboParser:
                 buffer.append(row)
                 total_roms += 1
                 
-                # 2. Write and empty the buffer if full.
+                # Write and empty the buffer if full.
                 if len(buffer) >= chunk_size:
                     TurboParser._write_chunk_arrow(buffer, output_dir, dat_filename, chunk_index, self.ARROW_SCHEMA)
                     buffer = [] 
                     chunk_index += 1
             
-            # 3. Write the last chunk
+            # Write the last chunk
             if buffer:
                 TurboParser._write_chunk_arrow(buffer, output_dir, dat_filename, chunk_index, self.ARROW_SCHEMA)
                 
             return {"roms": total_roms, "chunks": chunk_index + 1}
 
         except Exception as e:
-            logging.error(f"Staging Error in {file_path}: {e}")
+            logging.error(f"Staging Error in {filepath}: {e}")
             raise e

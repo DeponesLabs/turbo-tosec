@@ -1,6 +1,6 @@
 import os
 import pytest
-from turbo_tosec.parser import InMemoryParser, detect_file_format
+from turbo_tosec.parser import TurboParser, detect_file_format
 
 SAMPLE_CMP_CONTENT = """clrmamepro (
     name "Commodore 64 - Games"
@@ -23,7 +23,7 @@ game (
 
 @pytest.fixture
 def parser():
-    return InMemoryParser()
+    return TurboParser()
 
 def test_is_cmp_file_detection(tmp_path, parser):
     """
