@@ -60,6 +60,7 @@ diagrams/*.dia~
 
 # Exported Dia Diagram Images
 diagrams/*.png
+diagrams/*.dia.autosave
 
 # mypy cache
 .mypy_cache/
