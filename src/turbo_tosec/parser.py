@@ -1,28 +1,24 @@
 import os
-from typing import Dict, List, Tuple, Iterator, Optional
+from typing import Dict, List, Tuple, Iterator
 import re
 import xml.etree.ElementTree as ET
 import logging
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-# GLOBAL CONSTANTS (Module Level)
-# Compile patterns ONCE at import time.
-# Worker processes will inherit these without re-compiling.
-
-# Compile header pattern to identify CMP files for once for performance
-CMP_HEADER_PATTERN = re.compile(r'clrmamepro\s*\(', re.IGNORECASE)
+# Compile header pattern to identify CMP files
+CMP_HEADER_PATTERN: re.Pattern = re.compile(r'clrmamepro\s*\(', re.IGNORECASE)
 
 # Cmp parsing patterns
-GAME_PATTERN = re.compile(r'game\s*\(', re.IGNORECASE)
-NAME_PAT = re.compile(r'name\s+"(.*?)"', re.IGNORECASE)
-DESC_PAT = re.compile(r'description\s+"(.*?)"', re.IGNORECASE)
-ROM_PAT = re.compile(r'rom\s*\(\s*(.*?)\s*\)', re.DOTALL | re.IGNORECASE)
-ROM_NAME_PAT = re.compile(r'name\s+"(.*?)"', re.IGNORECASE)
-SIZE_PAT = re.compile(r'size\s+(\d+)', re.IGNORECASE)
-CRC_PAT = re.compile(r'crc\s+([0-9a-fA-F]+)', re.IGNORECASE)
-MD5_PAT = re.compile(r'md5\s+([0-9a-fA-F]+)', re.IGNORECASE)
-SHA1_PAT = re.compile(r'sha1\s+([0-9a-fA-F]+)', re.IGNORECASE)
+GAME_PATTERN: re.Pattern = re.compile(r'game\s*\(', re.IGNORECASE)
+NAME_PATTERN: re.Pattern = re.compile(r'name\s+"(.*?)"', re.IGNORECASE)
+DESCRIPTION_PATTERN: re.Pattern = re.compile(r'description\s+"(.*?)"', re.IGNORECASE)
+ROM_PATTERN: re.Pattern = re.compile(r'rom\s*\(\s*(.*?)\s*\)', re.DOTALL | re.IGNORECASE)
+ROM_NAME_PATTERN: re.Pattern = re.compile(r'name\s+"(.*?)"', re.IGNORECASE)
+SIZE_PATTERN: re.Pattern = re.compile(r'size\s+(\d+)', re.IGNORECASE)
+CRC_PATTERN: re.Pattern = re.compile(r'crc\s+([0-9a-fA-F]+)', re.IGNORECASE)
+MD5_PATTERN: re.Pattern = re.compile(r'md5\s+([0-9a-fA-F]+)', re.IGNORECASE)
+SHA1_PATTERN: re.Pattern = re.compile(r'sha1\s+([0-9a-fA-F]+)', re.IGNORECASE)
 
 def detect_file_format(filepath: str) -> str:
     """
@@ -53,7 +49,7 @@ def detect_file_format(filepath: str) -> str:
         # If file is unreadable (e.g. binary, no authorization...)
         return 'unknown'
 
-def parse_game_info(game_name: str) -> Tuple[str, int]:
+def parse_game_info(game_name: str | None) -> Tuple[str, int]:
     """
     Extracts title and release year from the game name string
     Input: "Dragonstone (1994)(Core)(M3)(Disk 1 of 4)[cr RNX - TRD]"
@@ -75,7 +71,7 @@ def parse_game_info(game_name: str) -> Tuple[str, int]:
     
     return title, release_year
 
-def _try_parse_size(raw_value: str) -> int:
+def _try_parse_size(raw_value: str | None) -> int:
     """
     Parses a size string robustly, handling hex, units, and dirty formats.
     Returns 0 if absolutely no number can be extracted.
@@ -259,7 +255,7 @@ class TurboParser:
             return []
 
         # CMP Parsing Logic (Bracket Counter)
-        game_blocks = []
+        game_blocks: List[str] = []
         iterator = GAME_PATTERN.finditer(content)
         
         for match in iterator:
@@ -277,22 +273,22 @@ class TurboParser:
                 game_blocks.append(content[start_idx : current_idx - 1])
 
         for block in game_blocks:
-            g_name_match = NAME_PAT.search(block)
-            g_desc_match = DESC_PAT.search(block)
+            g_name_match = NAME_PATTERN.search(block)
+            g_desc_match = DESCRIPTION_PATTERN.search(block)
             
             game_name = g_name_match.group(1) if g_name_match else "Unknown"
             title, release_year = parse_game_info(game_name)
             description = g_desc_match.group(1) if g_desc_match else ""
 
-            for rom_match in ROM_PAT.finditer(block):
+            for rom_match in ROM_PATTERN.finditer(block):
                 rom_data = rom_match.group(1)
-                r_name = ROM_NAME_PAT.search(rom_data)
+                r_name = ROM_NAME_PATTERN.search(rom_data)
                 
                 if r_name:
-                    r_size = SIZE_PAT.search(rom_data)
-                    r_crc = CRC_PAT.search(rom_data)
-                    r_md5 = MD5_PAT.search(rom_data)
-                    r_sha1 = SHA1_PAT.search(rom_data)
+                    r_size = SIZE_PATTERN.search(rom_data)
+                    r_crc = CRC_PATTERN.search(rom_data)
+                    r_md5 = MD5_PATTERN.search(rom_data)
+                    r_sha1 = SHA1_PATTERN.search(rom_data)
 
                     rows.append((dat_filename, platform, category, game_name, 
                                  title, release_year, description,
@@ -323,7 +319,7 @@ class TurboParser:
                     if not line: 
                         continue
 
-                    game_blocks = []
+                    game_blocks: List[str] = []
 
                     # Start of block
                     if line.startswith("game (") or line.startswith("resource ("):
@@ -345,17 +341,17 @@ class TurboParser:
 
                         # Parse ROM line and yield
                         if line.startswith("rom ("):
-                            r_name_match = ROM_NAME_PAT.search(line)
+                            r_name_match = ROM_NAME_PATTERN.search(line)
                             if not r_name_match: 
                                 continue
 
                             r_name = r_name_match.group(1)
                             
                             # This line is good for regex.
-                            r_size = SIZE_PAT.search(line)
-                            r_crc = CRC_PAT.search(line)
-                            r_md5 = MD5_PAT.search(line)
-                            r_sha1 = SHA1_PAT.search(line)
+                            r_size = SIZE_PATTERN.search(line)
+                            r_crc = CRC_PATTERN.search(line)
+                            r_md5 = MD5_PATTERN.search(line)
+                            r_sha1 = SHA1_PATTERN.search(line)
                             
                             # Parse Game Details
                             title, release_year = parse_game_info(current_game_info['name'])
@@ -477,3 +473,9 @@ class TurboParser:
         except Exception as e:
             logging.error(f"Staging Error in {filepath}: {e}")
             raise e
+
+if __name__ == '__main__':
+    
+    filepath = r"E:\HOME\RetroVault\TOSEC_DATs\Extracted\TOSEC-v2005-09-04\Acorn 8bit - Utilities (TOSEC-v2004-06-14_CM).dat"
+    parser = TurboParser()
+    parser._parse_cmp(filepath)
