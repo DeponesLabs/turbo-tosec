@@ -4,6 +4,7 @@ import platform
 import psutil
 import logging
 import ctypes
+from types import TracebackType
 from typing import Dict, List, Tuple, Optional, Callable, Any, NamedTuple
 import duckdb
 
@@ -22,28 +23,35 @@ class DatabaseManager:
     @property
     def columns(self) -> List[str]:
         return self._column_names
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        """Getter that ensures the connection exists before returning it."""
+        if self._conn is None:
+            raise RuntimeError("Database connection has not been initialized.")
+        return self._conn
     
-    def __init__(self, db_path: str, config: DBConfig = None, read_only: bool = False):
+    def __init__(self, db_path: str, config: DBConfig | None, read_only: bool = False) -> None:
         
         self.db_path = db_path
         # If config is None use default config
         self.config = config or DBConfig()
         self.read_only = read_only
-        self.conn = None
-        self._column_names = []    # for GUI, it should know the column names
+        self._conn: duckdb.DuckDBPyConnection | None = None
+        self._column_names: List[str] = []    # for GUI
         
-    def __enter__(self):
+    def __enter__(self) -> "DatabaseManager":
         
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> None:
         
         self.close()
 
-    def connect(self):
+    def connect(self) -> None:
         """Establishes connection and ensures schema exists."""
-        self.conn = duckdb.connect(self.db_path, read_only=self.read_only)
+        self._conn = duckdb.connect(self.db_path, read_only=self.read_only)
         
         # Turbo settings and Table Setup in WRITE mode (CLI)
         if not self.read_only:
@@ -74,17 +82,15 @@ class DatabaseManager:
         else:
             print("DB Config: Safe Mode engaged (Full integrity)")
             
-    def close(self):
+    def close(self) -> None:
         """Closes the database connection safely."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
-    def _setup_schema(self, target_conn: duckdb.DuckDBPyConnection = None) -> None:
-        """Creates tables. Can work on the main connection or a provided temporary one."""
+    def _setup_schema(self, target_conn: duckdb.DuckDBPyConnection | None = None) -> None:
+        # Use the passed connection if it exists, otherwise use the default property
         conn = target_conn or self.conn
-        if not conn:
-            return
 
         # Main ROM table
         conn.execute("""
@@ -118,10 +124,16 @@ class DatabaseManager:
     def _load_column_metadata(self) -> None:
         """Caches column names for the GUI model."""
         try:
-            exists = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'").fetchone()[0]
-            if exists:
-                self.conn.execute("SELECT * FROM roms LIMIT 0")
-                self._column_names = [desc[0] for desc in self.conn.description]
+            cursor = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'")
+            res1 = cursor.fetchone()
+            if not res1 or res1[0] == 0:
+                self._column_names = []
+            
+            res2 = self.conn.execute("SELECT * FROM roms LIMIT 0")
+            if res2.description:
+                self._column_names = [desc[0] for desc in res2.description]
+            else:
+                self._column_names = []
                 
         except Exception:
             self._column_names = []
@@ -134,7 +146,7 @@ class DatabaseManager:
         except:
             return None
 
-    def set_metadata_value(self, key: str, value: str):
+    def set_metadata_value(self, key: str, value: str) -> None:
         
         self.conn.execute("INSERT OR REPLACE INTO db_metadata VALUES (?, ?)", (key, value))
 
@@ -227,7 +239,8 @@ class DatabaseManager:
         logging.info(init_msg)
         if status_callback:
             status_callback(init_msg)
-            
+
+        count = 0            
         start_time = time.time()
         
         conn = duckdb.connect(self.db_path)
@@ -239,7 +252,9 @@ class DatabaseManager:
             conn.execute(f"INSERT INTO roms SELECT * FROM read_parquet('{parquet_path}')")
             
             # Gather execution statistics
-            count = conn.execute("SELECT count(*) FROM roms").fetchone()[0]
+            result = conn.execute("SELECT count(*) FROM roms").fetchone()
+            if result and len(result) > 0:
+                count = result[0]
             
         finally:
             conn.close()
@@ -298,24 +313,29 @@ class DatabaseManager:
             self.conn.execute(f"PRAGMA threads={thread_count}")
 
     # Read Operations (GUI / Pagination Support)
-    def get_total_count(self, filters: Dict[str, str] = None) -> int:
+    def get_total_count(self, filters: Dict[str, str] | None = None) -> int:
         
         query = "SELECT COUNT(*) FROM roms"
-        params = []
+        params: List[Any] = []
         
         if filters:
-            where_clause, params = self._build_where_clause(filters)
-            query += f" WHERE {where_clause}"
+            where_clause, filter_params = self._build_where_clause(filters)
+            if where_clause:
+                query += f" WHERE {where_clause}"
+                params = filter_params
             
         try:
-            return self.conn.execute(query, params).fetchone()[0]
+            result = self.conn.execute(query, params).fetchone()
+            if result is not None and isinstance(result[0], int):
+                return result[0]
+            return 0
         
         except Exception as error:
             error_details = f"DB Count Failed: {str(error)}\nSQL: {query}\nParams: {params}"
             logging.error(error_details)
             raise RuntimeError(error_details) from error
         
-    def fetch_page(self, limit: int, offset: int, filters: Dict[str, str] = None, sort_col: str = None, sort_asc: bool = True) -> List[Tuple]:
+    def fetch_page(self, limit: int, offset: int, filters: Dict[str, str] | None = None, sort_col: str | None  = None, sort_asc: bool = True) -> List[Tuple]:
         """Fetches a specific slice of data for the GUI."""
         query = "SELECT * FROM roms"
         params = []
@@ -465,9 +485,9 @@ class DatabaseManager:
         try:
             percent = int(limit_str.replace("%", "")) / 100.0
             total_ram_bytes = 0
-            
+            system = platform.system()
             # for Windows
-            if platform.system() == "Windows":
+            if system == "Windows":
                 kernel32 = ctypes.windll.kernel32
                 c_ulonglong = ctypes.c_ulonglong
                 

@@ -289,7 +289,7 @@ class ImportSession:
                     for arrow_batch in arrow_stream:
                         # Quick Registration to DuckDB (Considered Zero-Copy)
                         # The 'arrow_batch' variable is used directly within the SQL query.
-                        self.db.conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
+                        self.db._conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
                         
                         # Update the stats
                         rows_in_batch = arrow_batch.num_rows
