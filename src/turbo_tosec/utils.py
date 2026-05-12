@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List, Generator, Tuple
 import hashlib
 import shutil
@@ -152,8 +153,6 @@ def calculate_file_hash_gen(filepath: str, hash_algorithm: str = "md5", chunk_si
     # The loop is done. The generator returns the final hash.
     return hasher.hexdigest()
 
-import re
-
 def extract_tosec_version(directory_path: str) -> str:
     """
     Extracts the TOSEC version string from a given directory path using regular expressions.
@@ -174,3 +173,16 @@ def extract_tosec_version(directory_path: str) -> str:
         return match.group(1)
         
     return "Unknown"
+
+def human_readable_size(self) -> str:
+    
+    try:
+        s = float(self.size)
+    except (ValueError, TypeError):
+        return "0 B"
+        
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if s < 1024.0:
+            return f"{s:.2f} {unit}"
+        s /= 1024.0
+    return f"{s:.2f} TB"

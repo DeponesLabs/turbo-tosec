@@ -20,20 +20,6 @@ class TosecDat:
     score: float = 0.0          # for fuzzy-name searching
 
     @property
-    def human_readable_size(self) -> str:
-        
-        try:
-            s = float(self.size)
-        except (ValueError, TypeError):
-            return "0 B"
-            
-        for unit in ['B', 'KB', 'MB', 'GB']:
-            if s < 1024.0:
-                return f"{s:.2f} {unit}"
-            s /= 1024.0
-        return f"{s:.2f} TB"
-
-    @property
     def is_verified(self) -> bool:
         """Does the file contain a 'verified dump' [!]?"""
         return "[!]" in (self.status or "") or "[!]" in self.rom_name

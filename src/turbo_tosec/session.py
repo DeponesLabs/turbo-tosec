@@ -1,3 +1,9 @@
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import argparse
+    
 import os
 from typing import List, Tuple, Optional, Callable, Dict
 import threading
@@ -13,39 +19,35 @@ import pyarrow as pa
 import xml.etree.ElementTree as ET
 
 from turbo_tosec.database import DatabaseManager
-from turbo_tosec.parser import InMemoryParser, TurboParser, parse_game_info
+from turbo_tosec.parser import TurboParser, parse_game_info
 from turbo_tosec.state import IngestionStateEvaluator
 from turbo_tosec.utils import Console, extract_tosec_version
 
-def worker_parse_task(file_path: str) -> List[Tuple]:
+def worker_parse_task(filepath: str) -> List[Tuple]:
     """
     Worker for InMemoryMode: Parses XML completely into RAM (and returns list of tuples).
     """
-    parser = InMemoryParser()
-    return parser.parse(file_path)
+    parser = TurboParser()
+    return parser.parse(filepath)
 
-def worker_staged_task(file_path: str, temp_dir: str) -> dict:
+def worker_staged_task(filepath: str, temp_dir: str) -> dict:
     """
     Worker for StagedMode: Parses XML and writes chunks to intermediate Parquet files.
     """
     try:
         parser = TurboParser()
-        result_stats = parser.parse_and_save_chunks(file_path, temp_dir)
+        result_stats = parser.parse_and_save_chunks(filepath, temp_dir)
         return result_stats
     except Exception as error:
-        raise RuntimeError(f"Error in {os.path.basename(file_path)}: {error}")
+        raise RuntimeError(f"Error in {os.path.basename(filepath)}: {error}")
 
 class ImportSession:
     """
-    Orchestrates the ingestion workflow for TOSEC DAT files.
+    Manages the ingestion workflow for TOSEC DAT files.
     Encapsulates file discovery, parsing, and database insertion strategies.
-    Ingests with one of the 3 strategies:
-    1. InMemoryMode
-    2. StagedMode
-    3. DirectMode
+    Ingests with one of the 3 strategies: InMemoryMode, StagedMode, DirectMode
     """
-    def __init__(self, db_manager: DatabaseManager, args=None,  # Optional for CLI
-                 workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
+    def __init__(self, db_manager: DatabaseManager, args: argparse.Namespace = None, workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
         """
         Initializes the import session with the necessary configuration and dependencies.
         
@@ -59,13 +61,13 @@ class ImportSession:
         Raises:
             ValueError: If neither db_manager nor db_path is provided.
         """
-        self.args = args
-        self.db = db_manager
-        self.buffer = []
-        self.total_roms = 0
-        self.error_count = 0
+        self.args: argparse.Namespace = args
+        self.db: DatabaseManager = db_manager
+        self.buffer: List[List[Tuple]] = []
+        self.total_roms: int = 0
+        self.error_count: int = 0
         self.stop_monitor = threading.Event()
-        self.executor = None # To track active executor for cleanup
+        self.executor: concurrent.futures.ProcessPoolExecutor = None # To track active executor for cleanup
 
         # *************** Strategy Selection ***************
         self.staged = getattr(args, 'staged', False) if args else False     # StagedMode: Uses disk as buffer (safest for huge datasets)
@@ -79,10 +81,11 @@ class ImportSession:
             self.batch_size = getattr(args, 'batch_size', batch_size)
         else:
             self.workers = workers
-            self.temp_dir = temp_dir    # Temp dir is only relevant for Staged Mode
+            self.temp_dir = temp_dir    # temp_dir is only relevant for 'Staged Mode'
             self.batch_size = batch_size
         
         max_cpu = multiprocessing.cpu_count()
+        
         if self.workers <= 0 or self.workers > max_cpu:
             self.workers = max_cpu
 
@@ -99,15 +102,15 @@ class ImportSession:
         """
         discovered = []
         for root, _, files in os.walk(source_path):
-            for file in files:
-                if not file.lower().endswith(".dat"):
+            for f in files:
+                if not f.lower().endswith(".dat"):
                     continue
                 
                 # Apply optional filtering logic
-                if filters and not any(f.lower() in file.lower() for f in filters):
+                if filters and not any(f.lower() in f.lower() for f in filters):
                     continue
                     
-                discovered.append(os.path.join(root, file))
+                discovered.append(os.path.join(root, f))
                 
         return discovered
     
@@ -178,7 +181,7 @@ class ImportSession:
         
         return {'total_roms': self.total_roms, 'errors': self.error_count}
     
-    def run(self, files_to_process: List[str]):
+    def run(self, files_to_process: List[str]) -> tuple[int, int]:
         """
         Main execution entry point.
         """
@@ -195,12 +198,10 @@ class ImportSession:
         
         return stats['total_roms'], stats['errors']
 
-    # Strategy 1: In-memory
-    def _run_in_memory_mode(self, files, workers, total_bytes, initial_bytes, progress_callback=None):
+    # Strategy: In-memory
+    def _run_in_memory_mode(self, files: List[str], workers: int, total_bytes: int, initial_bytes: int, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
         
-        with UniversalProgress(total=total_bytes, initial=initial_bytes, 
-                               desc="Direct Ingestion", callback=progress_callback) as pbar:
-            
+        with UniversalProgress(total=total_bytes, initial=initial_bytes, desc="Direct Ingestion", callback=progress_callback) as pbar:
             self._start_monitor(pbar)
             if workers < 2:
                 self._run_serial(files, pbar)
@@ -211,31 +212,31 @@ class ImportSession:
         
         self._flush_buffer() # Write any remaining data
 
-    # Strategy 2: Staged 
-    def _run_staged_mode(self, files, workers, total_bytes, initial_bytes, progress_callback=None):
+    # Strategy: Staged 
+    def _run_staged_mode(self, files: List[str], workers: int, total_bytes: int, initial_bytes: int, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
         # Parse -> Parquet Files -> Bulk Import
-        with UniversalProgress(total=total_bytes, initial=initial_bytes, 
-                               desc="Direct Ingestion", callback=progress_callback) as pbar:
-            
+        with UniversalProgress(total=total_bytes, initial=initial_bytes, desc="Direct Ingestion", callback=progress_callback) as pbar:
             self._start_monitor(pbar)
             executor = concurrent.futures.ProcessPoolExecutor(max_workers=workers)
             
             try:
                 self.executor = executor
                 # Call Staging worker
-                future_to_file = {executor.submit(worker_staged_task, f, self.temp_dir): f for f in files}
+                future_to_file = {
+                    executor.submit(worker_staged_task, f, self.temp_dir): f for f in files
+                    }
                 
                 for future in concurrent.futures.as_completed(future_to_file):
-                    file_path = future_to_file[future]
+                    filepath = future_to_file[future]
                     try:
                         stats = future.result() # Return as Dict: {'roms': 500, 'size': 1024}
                         
                         # Check Skipped Files (for Legacy CMP files)
                         if stats.get("skipped"):
                             tqdm.write(f"{Console.SYM_INFO} Skipped: {stats.get('file')} ({stats.get('reason')})")
-                            # Push the bar amount of the size of the file so it can reach 100%.
+                            # Push the bar amount of the size of the file.
                             try:
-                                pbar.update(os.path.getsize(file_path))
+                                pbar.update(os.path.getsize(filepath))
                             except:
                                 pbar.update(0)
                             continue
@@ -245,7 +246,7 @@ class ImportSession:
                         
                         # Update Progress-bar 
                         try:
-                            file_size = os.path.getsize(file_path)
+                            file_size = os.path.getsize(filepath)
                             pbar.update(file_size)
                         except:
                             pbar.update(0)
@@ -253,7 +254,7 @@ class ImportSession:
                         pbar.set_postfix({"ROMs": self.total_roms})
 
                     except Exception as error:
-                        self._handle_error(error, file_path)
+                        self._handle_error(error, filepath)
             finally:
                 self.executor.shutdown(wait=True)
                 self.executor = None
@@ -273,87 +274,97 @@ class ImportSession:
         else:
             Console.warning("No ROMs found to import.")
 
-    # Strategy 3: Direct Mode
-    def _run_direct_mode(self, files, total_bytes, initial_bytes, progress_callback=None):
+    # Strategy: Direct Mode
+    def _run_direct_mode(self, files: List[str], workers: int, total_bytes: int, initial_bytes: int, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
         """
         Parses XML stream and injects directly into DuckDB via Arrow.
         Runs in Main Thread to utilize DuckDB's connection safely.
         """
         parser = TurboParser()
+        with UniversalProgress(total=total_bytes, initial=initial_bytes, desc="Direct Ingestion", callback=progress_callback) as pbar:
             
-        with UniversalProgress(total=total_bytes, initial=initial_bytes, 
-                               desc="Direct Ingestion", callback=progress_callback) as pbar:
-            
-            for file_path in files:
+            for filepath in files:
                 try:
-                    arrow_stream = parser.parse_to_arrow_stream(file_path, chunk_size=50000)
+                    arrow_stream = parser.parse_to_arrow_stream(filepath, chunk_size=50000)
                     for arrow_batch in arrow_stream:
-                        # 1. DuckDB'ye Hızlı Kayıt (Zero-Copy sayılır)
-                        # 'arrow_batch' değişkeni SQL sorgusu içinde doğrudan kullanılır.
-                        self.db.conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
+                        # Quick Registration to DuckDB (Considered Zero-Copy)
+                        # The 'arrow_batch' variable is used directly within the SQL query.
+                        self.db._conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
                         
-                        # 2. İstatistikleri Güncelle
+                        # Update the stats
                         rows_in_batch = arrow_batch.num_rows
                         self.total_roms += rows_in_batch
                         pbar.set_postfix({"ROMs": self.total_roms})
 
-                    # 3. Progress Bar (Dosya boyutu kadar ilerlet)
+                    # Progress Bar (Advance by the file size)
                     try:
-                        pbar.update(os.path.getsize(file_path))
+                        pbar.update(os.path.getsize(filepath))
                     except:
                         pbar.update(0)
                         
                 except Exception as error:
-                    self._handle_error(error, file_path)
+                    self._handle_error(error, filepath)
             
-    def _start_monitor(self, pbar):
-        self.stop_monitor.clear()
-        def monitor_progress():
-            while not self.stop_monitor.is_set():
-                time.sleep(1)
-                if hasattr(pbar, 'console_bar') and pbar.console_bar:
-                    pbar.console_bar.refresh()
+    def _start_monitor(self, pbar: UniversalProgress) -> None:
         
-        self.monitor_thread = threading.Thread(target=monitor_progress, daemon=True)
+        self.stop_monitor.clear()
+        self.monitor_thread = threading.Thread(target=self._monitor_loop, args=(pbar, ), daemon=True)
         self.monitor_thread.start()
 
-    def _stop_monitor(self):
+    def _monitor_loop(self, pbar: UniversalProgress) -> None:
+        
+        while not self.stop_monitor.is_set():
+            time.sleep(1)
+            if hasattr(pbar, 'console_bar') and pbar.console_bar:
+                pbar.console_bar.refresh()
+
+    def _stop_monitor(self) -> None:
+        """Sets the stop event and waits for the monitor thread to exit."""
+        # Signal the thread to stop
         self.stop_monitor.set()
-        if hasattr(self, 'monitor_thread'):
-            self.monitor_thread.join()        
+        
+        # Safely join the thread
+        if hasattr(self, 'monitor_thread') and self.monitor_thread.is_alive():
+            # Avoid joining the current thread (prevents deadlock)
+            if self.monitor_thread is not threading.current_thread():
+                # Use a timeout so main program doesn't hang forever 
+                # if the thread gets stuck
+                self.monitor_thread.join(timeout=2.0)
+                
+        # Clear the thread reference after stopping
+        self.monitor_thread = None  
     
-    def _flush_buffer(self):
+    def _flush_buffer(self) -> None:
+        
         if self.buffer:
             self.db.insert_batch(self.buffer)
             self.total_roms += len(self.buffer)
             self.buffer.clear()
 
-    def _run_serial(self, files, pbar):
+    def _run_serial(self, files: List[str], pbar: UniversalProgress) -> None:
         
-        parser = InMemoryParser()
-        for file_path in files:
+        parser = TurboParser()
+        for filepath in files:
             try:
-                data = parser.parse(file_path)
-                self._process_result(data, file_path, pbar)
-                
+                data = parser.parse(filepath)
+                self._process_result(data, filepath, pbar)
             except Exception as error:
-                self._handle_error(error, file_path)
+                self._handle_error(error, filepath)
 
-    def _run_parallel(self, files, workers, pbar):
+    def _run_parallel(self, files: List[str], workers: int, pbar: UniversalProgress) -> None:
         
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as executor:
             future_to_file = {executor.submit(worker_parse_task, f): f for f in files}
             
             for future in concurrent.futures.as_completed(future_to_file):
-                file_path = future_to_file[future]
+                filepath = future_to_file[future]
                 try:
                     data = future.result()
-                    self._process_result(data, file_path, pbar)
-                    
+                    self._process_result(data, filepath, pbar)
                 except Exception as error:
-                    self._handle_error(error, file_path)
+                    self._handle_error(error, filepath)
                     
-    def _process_result(self, data, file_path, pbar):
+    def _process_result(self, data: List[Tuple], filepath: str, pbar: UniversalProgress) -> None:
         
         if data:
             self.buffer.extend(data)
@@ -364,14 +375,14 @@ class ImportSession:
         stats = {"ROMs": self.total_roms}
         if self.error_count > 0:
             stats["Errors"] = self.error_count
+            
         pbar.set_postfix(stats)
-        
         try:
-            pbar.update(os.path.getsize(file_path))
+            pbar.update(os.path.getsize(filepath))
         except:
             pbar.update(0)
 
-    def _prepare_temp_dir(self):
+    def _prepare_temp_dir(self) -> None:
         """Cleans or creates the temporary staging directory for Parquet chunks."""
         p = Path(self.temp_dir)
         if p.exists():
@@ -382,7 +393,7 @@ class ImportSession:
                 
         p.mkdir(parents=True, exist_ok=True)
 
-    def _handle_error(self, error, file_path):
+    def _handle_error(self, error: Exception, filepath: str) -> None:
         
         error_msg = str(error).lower()
         if "not enough space" in error_msg or "read-only file system" in error_msg:
@@ -390,8 +401,8 @@ class ImportSession:
              
         self.error_count += 1
         
-        tqdm.write(f"{Console.SYM_FAIL} Failed: {os.path.basename(file_path)} (Check logs)")
-        logging.error(f"Failed: {file_path} -> {error}")
+        tqdm.write(f"{Console.SYM_FAIL} Failed: {os.path.basename(filepath)} (Check logs)")
+        logging.error(f"Failed: {filepath} -> {error}")
     
 class UniversalProgress:
     """
@@ -399,18 +410,18 @@ class UniversalProgress:
     If a 'callback' is provided (GUI mode), it invokes the callback.
     If no callback is provided (CLI mode), it uses 'tqdm' for console output.
     """
-    def __init__(self, total: int, initial: int = 0, desc: str = "", unit: str = 'B', callback=None):
+    def __init__(self, total: int, initial: int = 0, desc: str = "", unit: str = 'B', callback: Optional[Callable[[int, int], None]]= None) -> None:
         
-        self.callback = callback
-        self.total = total
-        self.current = initial
-        self.console_bar = None
+        self.callback: Callable[[int, int], None] = callback
+        self.total: int = total
+        self.current: int = initial
+        self.console_bar: tqdm.tqdm = None
         
         if not self.callback:
             # CLI Mode: Initialize tqdm
             self.console_bar = tqdm(total=total, initial=initial, unit=unit, unit_scale=True, unit_divisor=1024, desc=desc)
 
-    def update(self, n: int):
+    def update(self, n: int) -> None:
         
         self.current += n
         if self.console_bar:
@@ -420,7 +431,7 @@ class UniversalProgress:
             # The GUI will take these values ​​and set the progress bar.
             self.callback(self.current, self.total)
 
-    def set_postfix(self, stats: dict):
+    def set_postfix(self, stats: dict[str, int]) -> None:
         
         if self.console_bar:
             self.console_bar.set_postfix(stats)

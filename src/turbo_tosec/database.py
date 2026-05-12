@@ -4,7 +4,8 @@ import platform
 import psutil
 import logging
 import ctypes
-from typing import Dict, List, Tuple, Optional, Any, NamedTuple
+from types import TracebackType
+from typing import Dict, List, Tuple, Optional, Callable, Any, NamedTuple
 import duckdb
 
 from turbo_tosec.domainobjects import TosecDat
@@ -22,28 +23,35 @@ class DatabaseManager:
     @property
     def columns(self) -> List[str]:
         return self._column_names
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        """Getter that ensures the connection exists before returning it."""
+        if self._conn is None:
+            raise RuntimeError("Database connection has not been initialized.")
+        return self._conn
     
-    def __init__(self, db_path: str, config: DBConfig = None, read_only: bool = False):
+    def __init__(self, db_path: str, config: DBConfig | None, read_only: bool = False) -> None:
         
         self.db_path = db_path
         # If config is None use default config
         self.config = config or DBConfig()
         self.read_only = read_only
-        self.conn = None
-        self._column_names = []    # for GUI, it should know the column names
+        self._conn: duckdb.DuckDBPyConnection | None = None
+        self._column_names: List[str] = []    # for GUI
         
-    def __enter__(self):
+    def __enter__(self) -> "DatabaseManager":
         
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> None:
         
         self.close()
 
-    def connect(self):
+    def connect(self) -> None:
         """Establishes connection and ensures schema exists."""
-        self.conn = duckdb.connect(self.db_path, read_only=self.read_only)
+        self._conn = duckdb.connect(self.db_path, read_only=self.read_only)
         
         # Turbo settings and Table Setup in WRITE mode (CLI)
         if not self.read_only:
@@ -52,7 +60,7 @@ class DatabaseManager:
             
         self._load_column_metadata()
     
-    def _apply_performance_settings(self):
+    def _apply_performance_settings(self) -> None:
         """
         Applies memory and thread settings for CLI Ingestion mode.
         Prints status messages to console.
@@ -74,17 +82,15 @@ class DatabaseManager:
         else:
             print("DB Config: Safe Mode engaged (Full integrity)")
             
-    def close(self):
+    def close(self) -> None:
         """Closes the database connection safely."""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
-    def _setup_schema(self, target_conn=None):
-        """Creates tables. Can work on the main connection or a provided temporary one."""
+    def _setup_schema(self, target_conn: duckdb.DuckDBPyConnection | None = None) -> None:
+        # Use the passed connection if it exists, otherwise use the default property
         conn = target_conn or self.conn
-        if not conn:
-            return
 
         # Main ROM table
         conn.execute("""
@@ -115,31 +121,36 @@ class DatabaseManager:
         # Metadata
         conn.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
     
-    def _load_column_metadata(self):
+    def _load_column_metadata(self) -> None:
         """Caches column names for the GUI model."""
         try:
-            # Check if the table exists
-            exists = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'").fetchone()[0]
-            # exists = self.execute("DESCRIBE 'roms'")
-            if exists:
-                self.conn.execute("SELECT * FROM roms LIMIT 0")
-                self._column_names = [desc[0] for desc in self.conn.description]
+            cursor = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'")
+            res1 = cursor.fetchone()
+            if not res1 or res1[0] == 0:
+                self._column_names = []
+            
+            res2 = self.conn.execute("SELECT * FROM roms LIMIT 0")
+            if res2.description:
+                self._column_names = [desc[0] for desc in res2.description]
+            else:
+                self._column_names = []
+                
         except Exception:
             self._column_names = []
     
     def get_metadata_value(self, key: str) -> Optional[str]:
-        """Fetches a value from the metadata table safely."""
+        
         try:
             result = self.conn.execute("SELECT value FROM db_metadata WHERE key=?", (key, )).fetchone()
             return result[0] if result else None
         except:
             return None
 
-    def set_metadata_value(self, key: str, value: str):
-        """Sets or updates a metadata key."""
+    def set_metadata_value(self, key: str, value: str) -> None:
+        
         self.conn.execute("INSERT OR REPLACE INTO db_metadata VALUES (?, ?)", (key, value))
 
-    def get_processed_files(self) -> set:
+    def get_processed_files(self) -> set[str]:
         """Returns a set of filenames that have already been imported."""
         try:
             res = self.conn.execute("SELECT filename FROM processed_files").fetchall()
@@ -147,7 +158,7 @@ class DatabaseManager:
         except:
             return set()
 
-    def wipe_database(self):
+    def wipe_database(self) -> None:
         """Clears all data but keeps the file structure."""
         try:
             self.conn.execute("DELETE FROM roms")
@@ -157,117 +168,174 @@ class DatabaseManager:
         except Exception as error:
             print(f"Error wiping database: {error}")
 
-    def insert_batch(self, buffer: List[Tuple]):
+    def insert_batch(self, buffer: List[Tuple]) -> None:
         """Inserts a batch of ROMs and marks their files as processed."""
         if not buffer:
             return
             
         # Insert ROM data
         self.conn.executemany("INSERT INTO roms VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", buffer)
+        
         # Mark files as processed
         unique_files = {row[0] for row in buffer}
         for filename in unique_files:
             self.conn.execute("INSERT OR IGNORE INTO processed_files (filename) VALUES (?)", (filename, ))
             
-    def export_to_parquet(self, parquet_path: str, threads: int = 1):
-    
+    def export_to_parquet(self, parquet_path: str, threads: int = 1, status_callback: Optional[Callable[[str], None]] = None) -> None:
+        """
+        Exports the current DuckDB database to a compressed Parquet file.
+        
+        Args:
+            parquet_path (str): The destination path for the exported file.
+            threads (int): Number of CPU threads to allocate for the operation.
+            status_callback (Optional[Callable]): Injected callback for real-time UI updates.
+            
+        Raises:
+            FileNotFoundError: If the source database does not exist.
+            duckdb.Error: If the database engine encounters an execution failure.
+        """
         if not os.path.exists(self.db_path):
-            print(f"  Database not found: {self.db_path}")
-            return
+            raise FileNotFoundError(f"Source database not found: {self.db_path}")
 
-        print(f"  Exporting database to Parquet: {parquet_path} (Threads: {threads})...")
-        start = time.time()
+        init_msg = f"Exporting database to Parquet: {parquet_path} (Threads: {threads})..."
+        logging.info(init_msg)
+        if status_callback:
+            status_callback(init_msg)
+            
+        start_time = time.time()
+        
+        # Let exceptions bubble up to the UI/CLI layer.
+        conn = duckdb.connect(self.db_path)
         
         try:
-            conn = duckdb.connect(self.db_path)
             conn.execute(f"PRAGMA threads={threads}")
             conn.execute(f"COPY roms TO '{parquet_path}' (FORMAT PARQUET, COMPRESSION 'SNAPPY')")
+        finally:
             conn.close()
-            print(f"  Export completed in {time.time() - start:.2f}s")
             
-        except Exception as error:
-            print(f"  Export failed: {error}")
+        duration = time.time() - start_time
+        success_msg = f"Export completed successfully in {duration:.2f}s."
+        logging.info(success_msg)
+        if status_callback:
+            status_callback(success_msg)
 
-    def import_from_parquet(self, parquet_path: str, threads: int = 1):
+    def import_from_parquet(self, parquet_path: str, threads: int = 1, status_callback: Optional[Callable[[str], None]] = None) -> None:
+        """
+        Imports data from a Parquet file into the DuckDB database.
         
+        Args:
+            parquet_path (str): The source path of the Parquet file.
+            threads (int): Number of CPU threads to allocate for the operation.
+            status_callback (Optional[Callable]): Injected callback for real-time UI updates.
+            
+        Raises:
+            FileNotFoundError: If the source Parquet file does not exist.
+            duckdb.Error: If the database engine encounters an execution failure.
+        """
         if not os.path.exists(parquet_path):
-            print(f"  Parquet file not found: {parquet_path}")
-            return
+            raise FileNotFoundError(f"Source Parquet file not found: {parquet_path}")
 
-        print(f"  Importing Parquet into database: {self.db_path} (Threads: {threads})...")
-        start = time.time()
+        init_msg = f"Importing Parquet into database: {self.db_path} (Threads: {threads})..."
+        logging.info(init_msg)
+        if status_callback:
+            status_callback(init_msg)
+
+        count = 0            
+        start_time = time.time()
         
+        conn = duckdb.connect(self.db_path)
         try:
-            conn = duckdb.connect(self.db_path) 
             self._setup_schema(target_conn=conn)
-            conn.execute(f"PRAGMA threads={threads}")   
-            # Read Parquet and insert into table
+            conn.execute(f"PRAGMA threads={threads}")
+            
+            # Read Parquet and insert into the table
             conn.execute(f"INSERT INTO roms SELECT * FROM read_parquet('{parquet_path}')")
             
-            # Statistics
-            count = conn.execute("SELECT count(*) FROM roms").fetchone()[0]
+            # Gather execution statistics
+            result = conn.execute("SELECT count(*) FROM roms").fetchone()
+            if result and len(result) > 0:
+                count = result[0]
+            
+        finally:
             conn.close()
             
-            print(f"  Import completed in {time.time() - start:.2f}s")
-            print(f"  Total Rows in DB: {count:,}")
-            
-        except Exception as error:
-            print(f"  Import failed: {error}")
+        duration = time.time() - start_time
+        success_msg = f"Import completed in {duration:.2f}s. Total Rows in DB: {count:,}"
+        logging.info(success_msg)
+        if status_callback:
+            status_callback(success_msg)
     
-    def import_from_parquet_folder(self, folder_path: str):
+    def import_from_parquet_folder(self, folder_path: str, status_callback: Optional[Callable[[str], None]] = None) -> None:
         """
-        Bulk imports all .parquet files from a directory into the main table.
-        Uses DuckDB's 'read_parquet' with wildcard support for maximum speed.
+        Bulk imports all .parquet files from a designated directory into the main database table.
+        Leverages DuckDB's native 'read_parquet' with glob wildcard support for maximum throughput.
+        
+        Args:
+            folder_path (str): The target directory containing the fragmented Parquet files.
+            status_callback (Optional[Callable]): Injected callback for real-time UI synchronization.
+            
+        Raises:
+            FileNotFoundError: If the designated Parquet folder does not exist.
+            duckdb.Error: If the database engine encounters an execution failure during the bulk insert.
         """
         if not os.path.exists(folder_path):
-             raise FileNotFoundError(f"Parquet folder not found: {folder_path}")
+             raise FileNotFoundError(f"Parquet directory not found: {folder_path}")
 
-        # Check the folder for the existence of the part files.
-        # DuckDB may throw an error or perform an empty operation if there is an empty folder
+        # Validate the presence of Parquet files to prevent DuckDB from throwing empty glob errors
         if not any(f.endswith(".parquet") for f in os.listdir(folder_path)):
-            print("No .parquet files found in temp folder to import.")
+            warn_msg = f"No .parquet files discovered in the target directory: {folder_path}"
+            logging.warning(warn_msg)
+            if status_callback:
+                status_callback(warn_msg)
             return
 
-        print(f"DuckDB: Bulk importing chunks from {folder_path}/*.parquet ...")
+        init_msg = f"DuckDB: Bulk importing chunks from {folder_path}/*.parquet ..."
+        logging.info(init_msg)
+        if status_callback:
+            status_callback(init_msg)
         
         # Windows fix: When sending paths within SQL, it's always safer to use a '/'.
         safe_path = folder_path.replace('\\', '/')
         
-        try:
-            # DuckDB's glob (*) capability ensures it to retrieve thousands of files 
-            # with a single SQL command without looping.
-            query = f"INSERT INTO roms SELECT * FROM read_parquet('{safe_path}/*.parquet', union_by_name=True);"
-            self.conn.execute(query)
+        # DuckDB's glob (*) capability ensures it to retrieve thousands of files 
+        # with a single SQL command without looping.
+        query = f"INSERT INTO roms SELECT * FROM read_parquet('{safe_path}/*.parquet', union_by_name=True);"
+        self.conn.execute(query)
             
-            print("Bulk Import Success.")
-            
-        except Exception as error:
-            print(f"Bulk Import Error: {error}")
-            raise error
+        success_msg = "Bulk Parquet import completed successfully."
+        logging.info(success_msg)
+        if status_callback:
+            status_callback(success_msg)
     
-    def configure_threads(self, thread_count: int):
+    def configure_threads(self, thread_count: int) -> None:
         """Sets the PRAGMA threads for DuckDB."""
         if thread_count > 0:
             self.conn.execute(f"PRAGMA threads={thread_count}")
 
     # Read Operations (GUI / Pagination Support)
-    def get_total_count(self, filters: Dict[str, str] = None) -> int:
-        """Returns total rows matching the filter."""
+    def get_total_count(self, filters: Dict[str, str] | None = None) -> int:
+        
         query = "SELECT COUNT(*) FROM roms"
-        params = []
+        params: List[Any] = []
         
         if filters:
-            where_clause, params = self._build_where_clause(filters)
-            query += f" WHERE {where_clause}"
+            where_clause, filter_params = self._build_where_clause(filters)
+            if where_clause:
+                query += f" WHERE {where_clause}"
+                params = filter_params
             
         try:
-            return self.conn.execute(query, params).fetchone()[0]
+            result = self.conn.execute(query, params).fetchone()
+            if result is not None and isinstance(result[0], int):
+                return result[0]
+            return 0
+        
         except Exception as error:
             error_details = f"DB Count Failed: {str(error)}\nSQL: {query}\nParams: {params}"
             logging.error(error_details)
             raise RuntimeError(error_details) from error
         
-    def fetch_page(self, limit: int, offset: int, filters: Dict[str, str] = None, sort_col: str = None, sort_asc: bool = True) -> List[Tuple]:
+    def fetch_page(self, limit: int, offset: int, filters: Dict[str, str] | None = None, sort_col: str | None  = None, sort_asc: bool = True) -> List[Tuple]:
         """Fetches a specific slice of data for the GUI."""
         query = "SELECT * FROM roms"
         params = []
@@ -405,7 +473,7 @@ class DatabaseManager:
             print(f"RAM detection failed ({error}), defaulting to 2GB.")
             return "2GB"
 
-    def _get_optimal_ram_limit_native(self, limit_str):
+    def _get_optimal_ram_limit_native(self, limit_str: str) -> str:
         """Calculates 75% of total RAM in GB, working on both Windows and Linux."""
         if limit_str == "auto":
             limit_str = "75%"
@@ -417,9 +485,9 @@ class DatabaseManager:
         try:
             percent = int(limit_str.replace("%", "")) / 100.0
             total_ram_bytes = 0
-            
+            system = platform.system()
             # for Windows
-            if platform.system() == "Windows":
+            if system == "Windows":
                 kernel32 = ctypes.windll.kernel32
                 c_ulonglong = ctypes.c_ulonglong
                 
@@ -458,5 +526,5 @@ class DatabaseManager:
             print(f"RAM detection failed ({error}), defaulting to 2GB.")
             return "2GB"
             
-    def get_appender(self, table_name):
+    def get_appender(self, table_name: str) -> duckdb.DuckDBPyAppender:
         return self.conn.cursor().appender(table_name)

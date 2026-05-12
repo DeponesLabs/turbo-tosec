@@ -54,3 +54,12 @@ tosec_importer.old.py
 
 # Developer Local Tools (Benchmarks, scripts, etc.)
 dev_benchmark_hook.py
+
+# Dia Diagram Files
+diagrams/*.dia~
+diagrams/*.png
+diagrams/*.dia.autosave
+diagrams/logs/
+
+# mypy cache
+.mypy_cache/
