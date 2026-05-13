@@ -47,7 +47,7 @@ class ImportSession:
     Encapsulates file discovery, parsing, and database insertion strategies.
     Ingests with one of the 3 strategies: InMemoryMode, StagedMode, DirectMode
     """
-    def __init__(self, db_manager: DatabaseManager, args: argparse.Namespace = None, workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
+    def __init__(self, db_manager: DatabaseManager, args: argparse.Namespace | None = None, workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
         """
         Initializes the import session with the necessary configuration and dependencies.
         
@@ -61,13 +61,13 @@ class ImportSession:
         Raises:
             ValueError: If neither db_manager nor db_path is provided.
         """
-        self.args: argparse.Namespace = args
+        self.args: argparse.Namespace | None = args
         self.db: DatabaseManager = db_manager
         self.buffer: List[List[Tuple]] = []
         self.total_roms: int = 0
         self.error_count: int = 0
         self.stop_monitor = threading.Event()
-        self.executor: concurrent.futures.ProcessPoolExecutor = None # To track active executor for cleanup
+        self.executor: concurrent.futures.ProcessPoolExecutor | None = None # To track active executor for cleanup
 
         # *************** Strategy Selection ***************
         self.staged = getattr(args, 'staged', False) if args else False     # StagedMode: Uses disk as buffer (safest for huge datasets)
@@ -115,21 +115,8 @@ class ImportSession:
         return discovered
     
     def ingest(self, source_path: str, mode: str = 'direct', resume: bool = False, force_new: bool = False,
-        filters: Optional[List[str]] = None, progress_callback: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
-        """
-        Executes the high-level ingestion pipeline, managing database state autonomously.
-        
-        Args:
-            source_path (str): The root directory containing TOSEC DAT metadata files.
-            mode (str): Execution strategy ('direct', 'staged', or 'legacy').
-            resume (bool): Instructs the engine to skip previously processed files.
-            force_new (bool): Instructs the engine to wipe the existing database prior to ingestion.
-            filters (Optional[List[str]]): Keywords to filter DAT files.
-            progress_callback (Optional[Callable]): Callback mechanism for UI thread synchronization.
-            
-        Returns:
-            Dict[str, int]: Aggregated ingestion statistics including total ROMs and errors.
-        """
+        filters: List[str] | None = None, progress_callback: Callable[[int, int], None] | None = None) -> Dict[str, int]:
+        """Executes the high-level ingestion pipeline, managing database state autonomously."""
         # Discover Context
         all_files = self._discover_files(source_path, filters=filters)
         if not all_files:
@@ -275,7 +262,7 @@ class ImportSession:
             Console.warning("No ROMs found to import.")
 
     # Strategy: Direct Mode
-    def _run_direct_mode(self, files: List[str], workers: int, total_bytes: int, initial_bytes: int, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
+    def _run_direct_mode(self, files: List[str], total_bytes: int, initial_bytes: int, progress_callback: Callable[[int, int], None] | None = None) -> None:
         """
         Parses XML stream and injects directly into DuckDB via Arrow.
         Runs in Main Thread to utilize DuckDB's connection safely.
