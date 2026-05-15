@@ -45,50 +45,35 @@ class ImportSession:
     """
     Manages the ingestion workflow for TOSEC DAT files.
     Encapsulates file discovery, parsing, and database insertion strategies.
-    Ingests with one of the 3 strategies: InMemoryMode, StagedMode, DirectMode
     """
-    def __init__(self, db_manager: DatabaseManager, args: argparse.Namespace | None = None, workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
+    def __init__(self, db_manager: DatabaseManager, workers: int = 0, temp_dir: str = "temp_chunks", batch_size: int = 1000):
         """
         Initializes the import session with the necessary configuration and dependencies.
         
         Args:
-            db_manager (DatabaseManager): An active DatabaseManager instance.
-            args (Any): CLI arguments for overriding defaults.
-            workers (int): Number of CPU workers for parallel processing.
+            db_manager (DatabaseManager): An active DatabaseManager instance injected by the caller.
+            workers (int): Number of CPU workers for parallel processing. Defaults to 0 (auto-detect).
             temp_dir (str): Directory path for staging temporary parquet chunks.
             batch_size (int): Threshold for flushing memory buffer to the database.
-            
+        
         Raises:
             ValueError: If neither db_manager nor db_path is provided.
         """
-        self.args: argparse.Namespace | None = args
         self.db: DatabaseManager = db_manager
+        self.temp_dir: str = temp_dir
+        self.batch_size: int = batch_size
+        
+        # Internal State Management
         self.buffer: List[List[Tuple]] = []
         self.total_roms: int = 0
         self.error_count: int = 0
         self.stop_monitor = threading.Event()
         self.executor: concurrent.futures.ProcessPoolExecutor | None = None # To track active executor for cleanup
-
-        # *************** Strategy Selection ***************
-        self.staged = getattr(args, 'staged', False) if args else False     # StagedMode: Uses disk as buffer (safest for huge datasets)
-        self.direct = getattr(args, 'direct', False) if args else False     # DirectMode: Uses RAM buffer + Zero Copy (fastest)
-        self.legacy = getattr(args, 'legacy', False) if args else False     # LegacyMode
         
-        # If CLI arguments are provided, use them; otherwise, use manual parameters
-        if args:
-            self.workers = getattr(args, 'workers', 0)
-            self.temp_dir = getattr(args, 'temp_dir', temp_dir)
-            self.batch_size = getattr(args, 'batch_size', batch_size)
-        else:
-            self.workers = workers
-            self.temp_dir = temp_dir    # temp_dir is only relevant for 'Staged Mode'
-            self.batch_size = batch_size
-        
+        # Hardware Resource Resolution
         max_cpu = multiprocessing.cpu_count()
+        self.workers = workers if 0 < workers <= max_cpu else max_cpu
         
-        if self.workers <= 0 or self.workers > max_cpu:
-            self.workers = max_cpu
-
     def _discover_files(self, source_path: str, filters: Optional[List[str]] = None) -> List[str]:
         """
         Internally scans the directory for DAT files with optional pattern filtering.
