@@ -525,6 +525,3 @@ class DatabaseManager:
         except Exception as error:
             print(f"RAM detection failed ({error}), defaulting to 2GB.")
             return "2GB"
-            
-    def get_appender(self, table_name: str) -> duckdb.DuckDBPyAppender:
-        return self.conn.cursor().appender(table_name)

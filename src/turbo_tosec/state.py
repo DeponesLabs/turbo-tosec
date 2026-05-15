@@ -11,6 +11,7 @@ class IngestionActionPlan:
     """
     wipe_required: bool
     files_to_process: List[str]
+    new_version_to_write: str | None = None
 
 class IngestionStateEvaluator:
     """
@@ -36,33 +37,37 @@ class IngestionStateEvaluator:
         """
         # Fail-Fast on Mutually Exclusive Directives
         if resume_requested and force_new_requested:
-            raise ConflictingFlagsError(
-                "Invalid execution state: 'resume' and 'force_new' cannot be processed simultaneously. "
-                "Please select only one operational directive."
-            )
+            raise ConflictingFlagsError("Invalid execution state: 'resume' and 'force_new' cannot be processed simultaneously. "
+                                        "Please select only one operational directive.")
             
         # Version Conflict Resolution
         if current_db_version and current_db_version != input_version:
-            if force_new_requested:
-                return IngestionActionPlan(wipe_required=True, files_to_process=all_discovered_files)
-            else:
-                raise VersionMismatchError(
-                    f"Version Conflict Detected. The existing database contains '{current_db_version}', "
-                    f"but the input directory indicates '{input_version}'. "
-                    "You must explicitly use the 'force_new' flag to overwrite the database."
-                )
-                
-        # Fresh Start / Force Wipe
+            if not force_new_requested:
+                raise VersionMismatchError(f"Version Conflict Detected. The existing database contains '{current_db_version}', "
+                                           f"but the input directory indicates '{input_version}'. ",
+                                           "You must explicitly use the 'force_new' flag to overwrite the database.")
+        
+        # Formulate Base Strategy
+        wipe_required = False
+        pending_files = []
+        
+        # # Fresh Start / Force Wipe or completely empty database
         if force_new_requested or not processed_files:
-            return IngestionActionPlan(wipe_required=force_new_requested, files_to_process=all_discovered_files)
+            wipe_required = force_new_requested
+            pending_files = all_discovered_files
 
-        # Delta Calculation for Resume
-        if resume_requested:
+        elif resume_requested:
+            # Delta Calculation for Resume
+            wipe_required = False
             pending_files = [f for f in all_discovered_files if os.path.basename(f) not in processed_files]
-            return IngestionActionPlan(wipe_required=False, files_to_process=pending_files)
+            
+        else:
+            # Ambiguous State (Existing data found, but no explicit instruction provided)
+            raise TurboTosecBaseError(f"Ambiguous Operational State: The database already contains {len(processed_files)} processed files. "
+                                       "Please explicitly declare your intent by passing 'resume=True' or 'force_new=True'.")
 
-        # Ambiguous State (Existing data found, but no explicit instruction)
-        raise TurboTosecBaseError(
-            f"Ambiguous Operational State: The database already contains {len(processed_files)} processed files. "
-            "Please explicitly declare your intent by passing 'resume=True' or 'force_new=True'."
-        )
+        # Assign only a new version string if we are actively wiping the database, 
+        # or if the database is completely brand new (lacks an existing version).
+        new_version_to_write = input_version if (wipe_required or not current_db_version) else None
+
+        return IngestionActionPlan(wipe_required=wipe_required, files_to_process=pending_files, new_version_to_write=new_version_to_write)

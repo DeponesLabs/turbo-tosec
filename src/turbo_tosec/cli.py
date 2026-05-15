@@ -9,11 +9,47 @@ import subprocess
 import platform
 from multiprocessing import freeze_support
 
+from tqdm import tqdm 
+
 from turbo_tosec.database import DatabaseManager, DBConfig
 from turbo_tosec.session import ImportSession
 from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, TurboTosecBaseError
 from turbo_tosec._version import __version__
+from turbo_tosec.utils import UniversalProgress, Console, open_file_with_default_app, check_system_resources
 
+class CLICallbackHandler:
+    """
+    Encapsulates CLI presentation state to provide clean, isolated callback hooks.
+    Strictly prevents the use of nested inner functions.
+    """
+    def __init__(self, pbar: UniversalProgress | None = None, session: ImportSession | None = None):
+        
+        self.pbar = pbar
+        self.session = session
+
+    def update_progress(self, current_bytes: int, total_bytes: int) -> None:
+        """Translates raw engine byte metrics into CLI progress bar updates."""
+        if self.pbar and self.pbar.console_bar:
+            if self.pbar.console_bar.total != total_bytes:
+                self.pbar.console_bar.total = total_bytes
+                
+            self.pbar.current = current_bytes
+            self.pbar.console_bar.n = current_bytes
+            self.pbar.console_bar.refresh()
+            
+            if self.session:
+                self.pbar.set_postfix({"ROMs": self.session.total_roms, "Errors": self.session.error_count})
+
+    @staticmethod
+    def write_above_bar(msg: str) -> None:
+        """Safely writes engine status updates above an active tqdm progress bar."""
+        tqdm.write(f"{Console.SYM_INFO} {msg}")
+
+    @staticmethod
+    def write_standard(msg: str) -> None:
+        """Standard console output for modes without an active progress bar."""
+        Console.info(msg)
+        
 def setup_logging(log_file: str):
    
     for handler in logging.root.handlers[:]:
@@ -24,46 +60,6 @@ def setup_logging(log_file: str):
             handlers=[logging.FileHandler(log_file, mode='w', encoding='utf-8')]
     )
 
-def open_file_with_default_app(filepath):
-    """Opens a file with the OS default application."""
-    try:
-        if platform.system() == 'Windows':
-            os.startfile(filepath)
-        elif platform.system() == 'Darwin': # macOS
-            subprocess.call(('open', filepath))
-        else: # Linux
-            subprocess.call(('xdg-open', filepath))
-    except Exception as e:
-        print(f"\nCould not open log file automatically: {e}")
-        
-def extract_tosec_version(path: str) -> str:
-    # Example pattern: TOSEC-v2023-08-15
-    match = re.search(r"(TOSEC-v\d{4}-\d{2}-\d{2})", path, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    return "Unknown"
-
-def check_system_resources(workers, db_threads):
-    """
-    Checks system limits and warns if the configuration might cause bottlenecks.
-    """
-    try:
-        cpu_count = os.cpu_count() or 1
-        total_requested_threads = workers * db_threads
-        
-        print(f"System Resources: {cpu_count} CPU Cores detected.")
-        
-        if total_requested_threads > cpu_count:
-            print(f"WARNING: You requested {total_requested_threads} concurrent threads ({workers} workers x {db_threads} db_threads).")
-            print(f"Your system only has {cpu_count} cores.")
-            print("    -> This may cause 'Context Switching' overhead and SLOW DOWN the process.")
-            print("    -> Recommendation: Keep (workers * db_threads) <= CPU Cores.")
-        else:
-            print(f"Configuration looks good: {total_requested_threads} threads <= {cpu_count} cores.")
-            
-    except Exception as e:
-        print(f"Resource check skipped: {e}")
-        
 def run_scan_mode(args, log_filename: str):
     
     setup_logging(log_filename)
@@ -75,30 +71,33 @@ def run_scan_mode(args, log_filename: str):
         mode = 'direct'
     elif args.staged:
         mode = 'staged'
-
-    start_time = time.time()
     
     db_config = DBConfig(turbo=(args.workers > 1), memory=args.db_memory, threads=args.db_threads)
     
     with DatabaseManager(args.output, config=db_config) as db:
-        
         db.configure_threads(args.workers)
-        session = ImportSession(db_manager=db)
-        print(f"\nInitializing ingestion sequence for: {args.input}")
-        stats = session.ingest(source_path=args.input, mode=mode, resume=args.resume, force_new=args.force_new)
+        
+        # Inject the arguments into the domain engine
+        session = ImportSession(db_manager=db, workers=args.workers, temp_dir=args.temp_dir, batch_size=args.batch_size)
+        Console.info(f"\nInitializing ingestion sequence for: {args.input}")
+        start_time = time.time()
+        
+        with UniversalProgress(total=0, desc="Ingesting DATs") as pbar:
+            # Instantiate the Handler instead of nested functions
+            handler = CLICallbackHandler(pbar=pbar, session=session)
 
+            stats = session.ingest(source_path=args.input, mode=mode, resume=args.resume, force_new=args.force_new,
+                                   progress_callback=handler.update_progress, status_callback=handler.write_above_bar)
     end_time = time.time()
     duration = end_time - start_time
-    total_roms = stats.get('total_roms', 0)
-    error_count = stats.get('errors', 0)
     
     print("\nTransaction completed!")
     print(f"Database: {args.output}")
-    print(f"Total ROMs: {total_roms:,}")
+    print(f"Total ROMs: {stats.get('total_roms', 0):,}")
     print(f"Elapsed Time: {duration:.2f}s")
     
-    if error_count > 0:
-        print(f"\nWARNING: {error_count} files failed.")
+    if stats.get('errors', 0) > 0:
+        print(f"\nWARNING: {stats.get('errors', 0)} files failed.")
         if args.open_log: 
             open_file_with_default_app(log_filename)
     else:
@@ -108,17 +107,18 @@ def run_scan_mode(args, log_filename: str):
                 os.remove(log_filename)
             except OSError: 
                 pass
-        print("Clean import.")
+        Console.success("Clean import.")
 
 def run_parquet_mode(args):
-    """
-    Handles Parquet import/export operations.
-    """
+    """Handles Parquet import/export operations."""
+    # Instantiate an empty handler for static methods
+    handler = CLICallbackHandler()
+    
     with DatabaseManager(args.db) as db:
         if args.export_file:
-            db.export_to_parquet(args.export_file, args.workers)
+            db.export_to_parquet(args.export_file, args.workers, status_callback=handler.write_standard)
         elif args.import_file:
-            db.import_from_parquet(args.import_file, args.workers)
+            db.import_from_parquet(args.import_file, args.workers, status_callback=handler.write_standard)
 
 def main():
     

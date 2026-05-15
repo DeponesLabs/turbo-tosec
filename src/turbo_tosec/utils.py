@@ -1,8 +1,11 @@
 import os
 import re
-from typing import List, Generator, Tuple
+import subprocess
+import platform
+from typing import List, Generator, Tuple, Callable
 import hashlib
 import shutil
+import tqdm
 
 class Console:
     """
@@ -78,6 +81,55 @@ class Console:
         """Performance metrics log."""
         print(f"{Console.OKCYAN}{Console.SYM_TIME} {msg}{Console.ENDC}")
 
+class UniversalProgress:
+    """
+    A wrapper that abstracts progress reporting.
+    If a 'callback' is provided (GUI mode), it invokes the callback.
+    If no callback is provided (CLI mode), it uses 'tqdm' for console output.
+    """
+    def __init__(self, total: int, initial: int = 0, desc: str = "", unit: str = 'B', callback: Callable[[int, int], None] | None = None) -> None:
+        
+        self.callback: Callable[[int, int], None] = callback
+        self.total: int = total
+        self.current: int = initial
+        self.console_bar: tqdm.tqdm = None
+        
+        if not self.callback:
+            # CLI Mode: Initialize tqdm
+            self.console_bar = tqdm(total=total, initial=initial, unit=unit, unit_scale=True, unit_divisor=1024, desc=desc)
+
+    def update(self, n: int) -> None:
+        
+        self.current += n
+        if self.console_bar:
+            self.console_bar.update(n)
+        elif self.callback:
+            # GUI Mode: Send (current, total)
+            # The GUI will take these values ​​and set the progress bar.
+            self.callback(self.current, self.total)
+
+    def set_postfix(self, stats: dict[str, int]) -> None:
+        
+        if self.console_bar:
+            self.console_bar.set_postfix(stats)
+        elif self.callback:
+            # Optional: This can be expanded if the GUI callback accepts a third parameter (stats). 
+            # # For now, only percentages are sent to the GUI.
+            pass
+
+    def close(self):
+        
+        if self.console_bar:
+            self.console_bar.close()
+
+    def __enter__(self): 
+        
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb): 
+        
+        self.close()
+        
 def get_dat_files(root_dir: str) -> List[str]:
     
     dat_files = []
@@ -171,7 +223,6 @@ def extract_tosec_version(directory_path: str) -> str:
     
     if match:
         return match.group(1)
-        
     return "Unknown"
 
 def human_readable_size(self) -> str:
@@ -186,3 +237,36 @@ def human_readable_size(self) -> str:
             return f"{s:.2f} {unit}"
         s /= 1024.0
     return f"{s:.2f} TB"
+
+def open_file_with_default_app(filepath):
+    """Opens a file with the OS default application."""
+    try:
+        if platform.system() == 'Windows':
+            os.startfile(filepath)
+        elif platform.system() == 'Darwin': # macOS
+            subprocess.call(('open', filepath))
+        else: # Linux
+            subprocess.call(('xdg-open', filepath))
+    except Exception as error:
+        print(f"\nCould not open log file automatically: {error}")
+        
+def check_system_resources(workers, db_threads):
+    """
+    Checks system limits and warns if the configuration might cause bottlenecks.
+    """
+    try:
+        cpu_count = os.cpu_count() or 1
+        total_requested_threads = workers * db_threads
+        
+        print(f"System Resources: {cpu_count} CPU Cores detected.")
+        
+        if total_requested_threads > cpu_count:
+            print(f"WARNING: You requested {total_requested_threads} concurrent threads ({workers} workers x {db_threads} db_threads).")
+            print(f"Your system only has {cpu_count} cores.")
+            print("    -> This may cause 'Context Switching' overhead and SLOW DOWN the process.")
+            print("    -> Recommendation: Keep (workers * db_threads) <= CPU Cores.")
+        else:
+            print(f"Configuration looks good: {total_requested_threads} threads <= {cpu_count} cores.")
+            
+    except Exception as e:
+        print(f"Resource check skipped: {e}")
