@@ -15,40 +15,9 @@ from turbo_tosec.database import DatabaseManager, DBConfig
 from turbo_tosec.session import ImportSession
 from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, TurboTosecBaseError
 from turbo_tosec._version import __version__
-from turbo_tosec.utils import UniversalProgress, Console, open_file_with_default_app, check_system_resources
-
-class CLICallbackHandler:
-    """
-    Encapsulates CLI presentation state to provide clean, isolated callback hooks.
-    Strictly prevents the use of nested inner functions.
-    """
-    def __init__(self, pbar: UniversalProgress | None = None, session: ImportSession | None = None):
-        
-        self.pbar = pbar
-        self.session = session
-
-    def update_progress(self, current_bytes: int, total_bytes: int) -> None:
-        """Translates raw engine byte metrics into CLI progress bar updates."""
-        if self.pbar and self.pbar.console_bar:
-            if self.pbar.console_bar.total != total_bytes:
-                self.pbar.console_bar.total = total_bytes
-                
-            self.pbar.current = current_bytes
-            self.pbar.console_bar.n = current_bytes
-            self.pbar.console_bar.refresh()
-            
-            if self.session:
-                self.pbar.set_postfix({"ROMs": self.session.total_roms, "Errors": self.session.error_count})
-
-    @staticmethod
-    def write_above_bar(msg: str) -> None:
-        """Safely writes engine status updates above an active tqdm progress bar."""
-        tqdm.write(f"{Console.SYM_INFO} {msg}")
-
-    @staticmethod
-    def write_standard(msg: str) -> None:
-        """Standard console output for modes without an active progress bar."""
-        Console.info(msg)
+from turbo_tosec.terminal import UniversalProgress, Console
+from turbo_tosec.presenter import CLIPresenter
+from turbo_tosec.utils import open_file_with_default_app, check_system_resources
         
 def setup_logging(log_file: str):
    
@@ -84,10 +53,10 @@ def run_scan_mode(args, log_filename: str):
         
         with UniversalProgress(total=0, desc="Ingesting DATs") as pbar:
             # Instantiate the Handler instead of nested functions
-            handler = CLICallbackHandler(pbar=pbar, session=session)
+            presenter = CLIPresenter(pbar=pbar, session=session)
 
             stats = session.ingest(source_path=args.input, mode=mode, resume=args.resume, force_new=args.force_new,
-                                   progress_callback=handler.update_progress, status_callback=handler.write_above_bar)
+                                   progress_callback=presenter.update_progress, status_callback=presenter.write_above_bar)
     end_time = time.time()
     duration = end_time - start_time
     
@@ -111,14 +80,14 @@ def run_scan_mode(args, log_filename: str):
 
 def run_parquet_mode(args):
     """Handles Parquet import/export operations."""
-    # Instantiate an empty handler for static methods
-    handler = CLICallbackHandler()
+    # Instantiate an empty presenter for static methods
+    presenter = CLIPresenter()
     
     with DatabaseManager(args.db) as db:
         if args.export_file:
-            db.export_to_parquet(args.export_file, args.workers, status_callback=handler.write_standard)
+            db.export_to_parquet(args.export_file, args.workers, status_callback=presenter.write_standard)
         elif args.import_file:
-            db.import_from_parquet(args.import_file, args.workers, status_callback=handler.write_standard)
+            db.import_from_parquet(args.import_file, args.workers, status_callback=presenter.write_standard)
 
 def main():
     
