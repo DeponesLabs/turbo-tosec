@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple, Callable, Dict
+from typing import List, Tuple, Callable, Dict, Any
 import threading
 import concurrent.futures
 import time
@@ -57,7 +57,7 @@ class ImportSession:
         self.batch_size: int = batch_size
         
         # Internal State Management
-        self.buffer: List[List[Tuple]] = []
+        self.buffer: List[Tuple[Any, ...]] = []
         self.total_roms: int = 0
         self.error_count: int = 0
         self.stop_monitor = threading.Event()
@@ -266,8 +266,10 @@ class ImportSession:
                 except Exception as error:
                     self._handle_error(error, filepath, status_callback)
         finally:
-            self.executor.shutdown(wait=True)
-            self.executor = None
+            if self.executor is not None:
+                self.executor.shutdown(wait=True)
+                self.executor = None
+                
             import gc
             gc.collect()
 
@@ -306,7 +308,7 @@ class ImportSession:
             try:
                 arrow_stream = parser.parse_to_arrow_stream(filepath, chunk_size=50000)
                 for arrow_batch in arrow_stream:
-                    self.db._conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
+                    self.db.conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
                     self.total_roms += arrow_batch.num_rows
 
                 # Advance progress
