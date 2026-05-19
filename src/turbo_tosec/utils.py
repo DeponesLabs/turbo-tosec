@@ -2,6 +2,7 @@ import os
 import re
 import subprocess
 import platform
+from types import TracebackType
 from typing import List, Generator, Tuple, Callable
 import hashlib
 import shutil
@@ -31,7 +32,7 @@ class Console:
     SYM_TIME = "[T]"
 
     @staticmethod
-    def banner():
+    def banner() -> None:
         """Prints the system banner."""
         # Width calculation for centering
         cols, _ = shutil.get_terminal_size((80, 20))
@@ -48,36 +49,36 @@ class Console:
         print(f"{Console.OKCYAN}{':: DEPONES LABS ::'.center(cols)}{Console.ENDC}\n")
 
     @staticmethod
-    def section(title: str):
+    def section(title: str) -> None:
         """Draws a section header line."""
         cols, _ = shutil.get_terminal_size((80, 20))
         print(f"\n{Console.BOLD}{Console.HEADER}{title.upper()}{Console.ENDC}")
         print(f"{Console.HEADER}{'=' * cols}{Console.ENDC}")
 
     @staticmethod
-    def info(msg: str, indent: int = 0):
+    def info(msg: str, indent: int = 0) -> None:
         """Standard info log."""
         prefix = " " * indent + Console.SYM_INFO
         print(f"{Console.OKBLUE}{prefix} {msg}{Console.ENDC}")
 
     @staticmethod
-    def success(msg: str, indent: int = 0):
+    def success(msg: str, indent: int = 0) -> None:
         """Success operation log."""
         prefix = " " * indent + Console.SYM_PLUS
         print(f"{Console.OKGREEN}{prefix} {msg}{Console.ENDC}")
 
     @staticmethod
-    def warning(msg: str):
+    def warning(msg: str) -> None:
         """Warning log."""
         print(f"{Console.WARNING}{Console.SYM_WARN} {msg}{Console.ENDC}")
 
     @staticmethod
-    def error(msg: str):
+    def error(msg: str) -> None:
         """Critical error log."""
         print(f"{Console.FAIL}{Console.SYM_FAIL} {msg}{Console.ENDC}")
         
     @staticmethod
-    def perf(msg: str):
+    def perf(msg: str) -> None:
         """Performance metrics log."""
         print(f"{Console.OKCYAN}{Console.SYM_TIME} {msg}{Console.ENDC}")
 
@@ -89,7 +90,7 @@ class UniversalProgress:
     """
     def __init__(self, total: int, initial: int = 0, desc: str = "", unit: str = 'B', callback: Callable[[int, int], None] | None = None) -> None:
         
-        self.callback: Callable[[int, int], None] = callback
+        self.callback: Callable[[int, int], None] | None = callback
         self.total: int = total
         self.current: int = initial
         self.console_bar: tqdm.tqdm = None
@@ -117,16 +118,16 @@ class UniversalProgress:
             # # For now, only percentages are sent to the GUI.
             pass
 
-    def close(self):
+    def close(self) -> None:
         
         if self.console_bar:
             self.console_bar.close()
 
-    def __enter__(self): 
+    def __enter__(self) -> "UniversalProgress": 
         
         return self
     
-    def __exit__(self, exc_type, exc_val, exc_tb): 
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None) -> None:
         
         self.close()
         
@@ -225,10 +226,10 @@ def extract_tosec_version(directory_path: str) -> str:
         return match.group(1)
     return "Unknown"
 
-def human_readable_size(self) -> str:
+def human_readable_size(size: int) -> str:
     
     try:
-        s = float(self.size)
+        s = float(size)
     except (ValueError, TypeError):
         return "0 B"
         
@@ -238,7 +239,7 @@ def human_readable_size(self) -> str:
         s /= 1024.0
     return f"{s:.2f} TB"
 
-def open_file_with_default_app(filepath):
+def open_file_with_default_app(filepath: str) -> None:
     """Opens a file with the OS default application."""
     try:
         if platform.system() == 'Windows':
@@ -250,7 +251,7 @@ def open_file_with_default_app(filepath):
     except Exception as error:
         print(f"\nCould not open log file automatically: {error}")
         
-def check_system_resources(workers, db_threads):
+def check_system_resources(workers: int, db_threads: int) -> None:
     """
     Checks system limits and warns if the configuration might cause bottlenecks.
     """
