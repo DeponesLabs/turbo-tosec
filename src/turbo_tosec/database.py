@@ -199,7 +199,7 @@ class DatabaseManager:
 
         init_msg = f"Exporting database to Parquet: {parquet_path} (Threads: {threads})..."
         logging.info(init_msg)
-        if status_callback:
+        if status_callback is not None:
             status_callback(init_msg)
             
         start_time = time.time()
