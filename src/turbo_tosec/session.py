@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List, Tuple, Callable, Dict, Any
 import threading
 import concurrent.futures
@@ -14,7 +15,6 @@ import xml.etree.ElementTree as ET
 from turbo_tosec.database import DatabaseManager
 from turbo_tosec.parser import TurboParser, parse_game_info
 from turbo_tosec.state import IngestionStateEvaluator, IngestionActionPlan
-from turbo_tosec.utils import extract_tosec_version
 
 def worker_parse_task(filepath: str) -> List[Tuple]:
     """
@@ -92,6 +92,27 @@ class ImportSession:
                 
         return discovered
     
+    @staticmethod
+    def extract_tosec_version(directory_path: str) -> str:
+        """
+        Extracts the TOSEC version string from a given directory path using regular expressions.
+        
+        The expected pattern follows the standard TOSEC release naming convention,
+        which typically resembles 'TOSEC-vYYYY-MM-DD' (e.g., 'TOSEC-v2023-08-15').
+        
+        Args:
+            directory_path (str): The absolute or relative file system path to be evaluated.
+            
+        Returns:
+            str: The extracted TOSEC version string. Returns 'Unknown' if the pattern is not found.
+        """
+        version_pattern = r"(TOSEC-v\d{4}-\d{2}-\d{2})"
+        match = re.search(version_pattern, directory_path, re.IGNORECASE)
+        
+        if match:
+            return match.group(1)
+        return "Unknown"
+    
     def ingest(self, source_path: str, mode: str = 'direct', resume: bool = False, force_new: bool = False, filters: List[str] | None = None, 
                progress_callback: Callable[[int, int], None] | None = None,
                status_callback: Callable[[str], None] | None = None) -> Dict[str, int]:
@@ -113,7 +134,7 @@ class ImportSession:
         if not all_files:
             return {'total_roms': 0, 'errors': 0}
         
-        input_version = extract_tosec_version(source_path)
+        input_version = ImportSession.extract_tosec_version(source_path)
         db_version = self.db.get_metadata_value('tosec_version')
         
         plan = self._evaluate_state(all_files, input_version, db_version, resume, force_new)

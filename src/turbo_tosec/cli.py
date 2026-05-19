@@ -17,7 +17,7 @@ from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, 
 from turbo_tosec._version import __version__
 from turbo_tosec.terminal import UniversalProgress, Console
 from turbo_tosec.presenter import CLIPresenter
-from turbo_tosec.utils import open_file_with_default_app, check_system_resources
+from turbo_tosec.system import open_file_with_default_app, check_system_resources
         
 def setup_logging(log_file: str):
    
