@@ -1,3 +1,11 @@
+## [2.5.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.5.0...v2.5.1) (2026-05-19)
+
+
+### Bug Fixes
+
+* error in Callback Union Operator syntax in database.py ([cd2b7a9](https://github.com/DeponesLabs/turbo-tosec/commit/cd2b7a9d1e674532aa6fc189dd6645027f11894e))
+* self.buffer type-hint ([c1894b2](https://github.com/DeponesLabs/turbo-tosec/commit/c1894b217c539828fc4b78cc7d781098256efe52))
+
 # [2.5.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.4.0...v2.5.0) (2026-05-01)
 
 
