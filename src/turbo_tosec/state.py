@@ -1,6 +1,6 @@
 import os
 from dataclasses import dataclass
-from typing import List, Set, Optional
+from typing import List, Set
 
 from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, TurboTosecBaseError
 
@@ -10,7 +10,7 @@ class IngestionActionPlan:
     Data transfer object representing the execution strategy determined by the state evaluator.
     """
     wipe_required: bool
-    files_to_process: List[str]
+    pending_files: List[str]
     new_version_to_write: str | None = None
 
 class IngestionStateEvaluator:
@@ -19,7 +19,7 @@ class IngestionStateEvaluator:
     the appropriate ingestion strategy (resume, wipe, or abort on conflict).
     """
 
-    def evaluate(self, all_discovered_files: List[str], processed_files: Set[str], current_db_version: Optional[str], 
+    def evaluate(self, all_discovered_files: List[str], processed_files: Set[str], current_db_version: str | None, 
                  input_version: str, resume_requested: bool, force_new_requested: bool) -> IngestionActionPlan:
         """
         Calculates the operational delta and resolves configuration conflicts.
@@ -70,4 +70,4 @@ class IngestionStateEvaluator:
         # or if the database is completely brand new (lacks an existing version).
         new_version_to_write = input_version if (wipe_required or not current_db_version) else None
 
-        return IngestionActionPlan(wipe_required=wipe_required, files_to_process=pending_files, new_version_to_write=new_version_to_write)
+        return IngestionActionPlan(wipe_required=wipe_required, pending_files=pending_files, new_version_to_write=new_version_to_write)

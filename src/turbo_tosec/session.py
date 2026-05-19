@@ -153,7 +153,7 @@ class ImportSession:
         if plan.new_version_to_write:
             self.db.set_metadata_value('tosec_version', plan.new_version_to_write)
             
-        return plan.files_to_process
+        return plan.pending_files
     
     def _dispatch_execution(self, files_to_process: List[str], mode: str, 
                             progress_callback: Callable[[int, int], None] | None = None,
