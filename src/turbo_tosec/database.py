@@ -181,7 +181,7 @@ class DatabaseManager:
         for filename in unique_files:
             self.conn.execute("INSERT OR IGNORE INTO processed_files (filename) VALUES (?)", (filename, ))
             
-    def export_to_parquet(self, parquet_path: str, threads: int = 1, status_callback: Callable[[str], None | None] = None) -> None:
+    def export_to_parquet(self, parquet_path: str, threads: int = 1, status_callback: Callable[[str], None] | None = None) -> None:
         """
         Exports the current DuckDB database to a compressed Parquet file.
         
@@ -219,7 +219,7 @@ class DatabaseManager:
         if status_callback:
             status_callback(success_msg)
 
-    def import_from_parquet(self, parquet_path: str, threads: int = 1, status_callback: Callable[[str], None | None] = None) -> None:
+    def import_from_parquet(self, parquet_path: str, threads: int = 1, status_callback: Callable[[str], None] | None = None) -> None:
         """
         Imports data from a Parquet file into the DuckDB database.
         
@@ -265,7 +265,7 @@ class DatabaseManager:
         if status_callback:
             status_callback(success_msg)
     
-    def import_from_parquet_folder(self, folder_path: str, status_callback: Callable[[str], None | None] = None) -> None:
+    def import_from_parquet_folder(self, folder_path: str, status_callback: Callable[[str], None] | None = None) -> None:
         """
         Bulk imports all .parquet files from a designated directory into the main database table.
         Leverages DuckDB's native 'read_parquet' with glob wildcard support for maximum throughput.
