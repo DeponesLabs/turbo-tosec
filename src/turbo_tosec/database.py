@@ -5,7 +5,7 @@ import psutil
 import logging
 import ctypes
 from types import TracebackType
-from typing import Dict, List, Tuple, Optional, Callable, Any, NamedTuple
+from typing import Dict, List, Tuple, Callable, Any, NamedTuple
 import duckdb
 
 from turbo_tosec.domainobjects import TosecDat
@@ -138,7 +138,7 @@ class DatabaseManager:
         except Exception:
             self._column_names = []
     
-    def get_metadata_value(self, key: str) -> Optional[str]:
+    def get_metadata_value(self, key: str) -> str | None:
         
         try:
             result = self.conn.execute("SELECT value FROM db_metadata WHERE key=?", (key, )).fetchone()
@@ -181,14 +181,14 @@ class DatabaseManager:
         for filename in unique_files:
             self.conn.execute("INSERT OR IGNORE INTO processed_files (filename) VALUES (?)", (filename, ))
             
-    def export_to_parquet(self, parquet_path: str, threads: int = 1, status_callback: Optional[Callable[[str], None]] = None) -> None:
+    def export_to_parquet(self, parquet_path: str, threads: int = 1, status_callback: Callable[[str], None] | None = None) -> None:
         """
         Exports the current DuckDB database to a compressed Parquet file.
         
         Args:
             parquet_path (str): The destination path for the exported file.
             threads (int): Number of CPU threads to allocate for the operation.
-            status_callback (Optional[Callable]): Injected callback for real-time UI updates.
+            status_callback (Callable[str]]): Injected callback for real-time UI updates.
             
         Raises:
             FileNotFoundError: If the source database does not exist.
@@ -199,7 +199,7 @@ class DatabaseManager:
 
         init_msg = f"Exporting database to Parquet: {parquet_path} (Threads: {threads})..."
         logging.info(init_msg)
-        if status_callback:
+        if status_callback is not None:
             status_callback(init_msg)
             
         start_time = time.time()
@@ -219,7 +219,7 @@ class DatabaseManager:
         if status_callback:
             status_callback(success_msg)
 
-    def import_from_parquet(self, parquet_path: str, threads: int = 1, status_callback: Optional[Callable[[str], None]] = None) -> None:
+    def import_from_parquet(self, parquet_path: str, threads: int = 1, status_callback: Callable[[str], None] | None = None) -> None:
         """
         Imports data from a Parquet file into the DuckDB database.
         
@@ -265,7 +265,7 @@ class DatabaseManager:
         if status_callback:
             status_callback(success_msg)
     
-    def import_from_parquet_folder(self, folder_path: str, status_callback: Optional[Callable[[str], None]] = None) -> None:
+    def import_from_parquet_folder(self, folder_path: str, status_callback: Callable[[str], None] | None = None) -> None:
         """
         Bulk imports all .parquet files from a designated directory into the main database table.
         Leverages DuckDB's native 'read_parquet' with glob wildcard support for maximum throughput.
@@ -359,7 +359,7 @@ class DatabaseManager:
             logging.error(error_details)
             raise RuntimeError(error_details) from error
         
-    def find_by_hash(self, file_hash: str, hash_type: str = "md5", platform: Optional[str] = None) -> Optional[Tuple]:
+    def find_by_hash(self, file_hash: str, hash_type: str = "md5", platform: str | None = None) -> Tuple | None:
         """
         Searches for a game using its cryptographic hash (MD5, CRC, SHA1).
         Returns the record with a 1.0 (100%) match score if found.
@@ -385,7 +385,7 @@ class DatabaseManager:
         # If found, append a perfect score (1.0) to maintain consistency with fuzzy search
         return (*result, 1.0) if result else None
 
-    def find_by_fuzzy_name(self, filename: str, platform: Optional[str] = None, threshold: float = 0.6) -> Optional[Tuple]:
+    def find_by_fuzzy_name(self, filename: str, platform: str | None = None, threshold: float = 0.6) -> Tuple | None:
         """
         Searches for a game using Jaro-Winkler string similarity on the game name.
         Returns the best match if the score is above the threshold.
@@ -406,7 +406,7 @@ class DatabaseManager:
         result = self.conn.execute(query, params).fetchone()
         return result if result else None
 
-    def resolve_game_match(self, filename: str, file_hash: Optional[str] = None, hash_type: str = "md5", platform: Optional[str] = None) -> Optional[TosecDat]:
+    def resolve_game_match(self, filename: str, file_hash: str | None = None, hash_type: str = "md5", platform: str | None = None) -> TosecDat | None:
         "Tries to identify the game first by hash, then by fuzzy name."
         match = None
 
