@@ -31,6 +31,15 @@ class TosecNamingService:
             return match.group(1)
         return "Unknown"
     
+    @staticmethod
+    def versions_match(db_version: str, input_version: str) -> bool:
+        """
+        Evaluates if the incoming TOSEC dataset version is compatible with the existing database.
+        Encapsulates the business logic for version equality (handles case-insensitivity and whitespace).
+        """
+        # A robust enterprise check rather than a fragile simple string comparison
+        return db_version.strip().lower() == input_version.strip().lower()
+
 class TosecTitleDecoder:
     
     @staticmethod
@@ -55,12 +64,3 @@ class TosecTitleDecoder:
         release_year = int(year_match.group(1)) if year_match else 0
         
         return title, release_year
-
-    @staticmethod
-    def versions_match(db_version: str, input_version: str) -> bool:
-        """
-        Evaluates if the incoming TOSEC dataset version is compatible with the existing database.
-        Encapsulates the business logic for version equality (handles case-insensitivity and whitespace).
-        """
-        # A robust enterprise check rather than a fragile simple string comparison
-        return db_version.strip().lower() == input_version.strip().lower()

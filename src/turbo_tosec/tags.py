@@ -85,6 +85,7 @@ class TosecTagEvaluator:
             "is_verified": TosecTagEvaluator.is_verified(filename),
             "is_bad_dump": TosecTagEvaluator.is_bad_dump(filename),
             "is_alternate": TosecTagEvaluator.is_alternate(filename),
+            "is_cracked": TosecTagEvaluator.is_cracked(filename),
             "languages": TosecTagEvaluator.extract_languages(filename),
             "modifications": mods_found
         }
