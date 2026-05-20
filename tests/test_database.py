@@ -26,13 +26,13 @@ class TestDatabaseManager:
         assert temp_db.get_db_version() is None
         
         # Set a version and verify it persists
-        temp_db.set_db_version("TOSEC-v2024-01-01")
+        temp_db._set_db_version("TOSEC-v2024-01-01")
         assert temp_db.get_db_version() == "TOSEC-v2024-01-01"
 
     def test_wipe_database(self, temp_db):
         """Tests that wipe completely truncates tables and drops the version."""
         # Setup state
-        temp_db.set_db_version("TOSEC-v1999")
+        temp_db._set_db_version("TOSEC-v1999")
         
         # Action
         temp_db.wipe_database()
@@ -47,10 +47,10 @@ class TestDatabaseManager:
     def test_insert_batch(self, temp_db):
         """Tests that data is correctly inserted and processed files are tracked."""
         # Create a dummy buffer matching the 14-column schema your DatabaseManager expects
+        # dat_filename, platform, category, game_name, title, release_year, description, rom_name, size, crc, md5, sha1, status, system
         dummy_buffer = [
-            # filename, title, year, publisher, system, size, crc, md5, sha1, is_bad, is_cracked, is_verified, is_alternate, languages
-            ("game1.zip", "Game One", "1990", "Pub", "Amiga", 1024, "crc1", "md51", "sha11", False, False, True, False, "En"),
-            ("game2.zip", "Game Two", "1992", "Pub", "Amiga", 2048, "crc2", "md52", "sha12", True, False, False, False, "Fr")
+            ("amiga1.dat", "Amiga", "Games", "Game One", "Game One (1990)", 1990, "Desc", "game1.rom", 1024, "crc1", "md51", "sha11", "[!]", "AGA"),
+            ("amiga2.dat", "Amiga", "Games", "Game Two", "Game Two (1992)", 1992, "Desc", "game2.rom", 2048, "crc2", "md52", "sha12", "[b]", "OCS")
         ]
         
         # Action
@@ -62,8 +62,8 @@ class TestDatabaseManager:
         
         # Verify Processed Files
         processed = temp_db.get_processed_files()
-        assert "game1.zip" in processed
-        assert "game2.zip" in processed
+        assert "amiga1.dat" in processed
+        assert "amiga2.dat" in processed
         assert len(processed) == 2
 
     def test_parquet_export_import(self, temp_db, tmp_path):
@@ -71,7 +71,7 @@ class TestDatabaseManager:
         parquet_file = str(tmp_path / "export.parquet")
         
         # Insert some data
-        dummy_buffer = [("test.zip", "Test", "1990", "P", "S", 1, "c", "m", "s", False, False, False, False, "")]
+        dummy_buffer = [("amiga1.dat", "Amiga", "Games", "Game One", "Game One (1990)", 1990, "Desc", "game1.rom", 1024, "crc1", "md51", "sha11", "[!]", "AGA")]
         temp_db.insert_batch(dummy_buffer)
         
         # Export it
