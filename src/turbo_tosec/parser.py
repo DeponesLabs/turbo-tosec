@@ -6,6 +6,8 @@ import logging
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from turbo_tosec.domain import TosecTitleDecoder
+
 # Compile header pattern to identify CMP files
 CMP_HEADER_PATTERN: re.Pattern = re.compile(r'clrmamepro\s*\(', re.IGNORECASE)
 
@@ -48,28 +50,6 @@ def detect_file_format(filepath: str) -> str:
     except Exception:
         # If file is unreadable (e.g. binary, no authorization...)
         return 'unknown'
-
-def parse_game_info(game_name: str | None) -> Tuple[str, int]:
-    """
-    Extracts title and release year from the game name string
-    Input: "Dragonstone (1994)(Core)(M3)(Disk 1 of 4)[cr RNX - TRD]"
-    Output: ("Dragonstone", "1994")
-    """
-    # Safety Check: XML node might miss the 'name' attribute
-    if not game_name:
-        return "Unknown", 0
-    
-    # Title: Take everything up to the first '(' character)
-    # If there are no parentheses, take the entire name.
-    title_match = re.match(r'^(.*?)(\s*\(|$)', game_name)
-    title = title_match.group(1).strip() if title_match else game_name.strip()
-    
-    # Year: Capture the format (19xx) or (20xx)
-    # Usually the first parenthesis, but look for 4 digits to be sure.
-    year_match = re.search(r'\((\d{4})\)', game_name)
-    release_year = int(year_match.group(1)) if year_match else 0
-    
-    return title, release_year
 
 def _try_parse_size(raw_value: str | None) -> int:
     """
@@ -188,7 +168,7 @@ class TurboParser:
             
             for game in root.findall('game'):
                 game_name = game.get('name')
-                title, release_year = parse_game_info(game_name)
+                title, release_year = TosecTitleDecoder.parse_game_info(game_name)
                 desc_node = game.find('description')
                 description = desc_node.text if desc_node is not None else ""
                 
@@ -220,7 +200,7 @@ class TurboParser:
                     if elem.tag in ('game', 'machine'):
                         game_name = elem.get('name')
                         # Parse game info fonksiyonunun var olduğunu varsayıyoruz
-                        title, release_year = parse_game_info(game_name) 
+                        title, release_year = TosecTitleDecoder.parse_game_info(game_name) 
                         
                         desc_node = elem.find('description')
                         description = desc_node.text if desc_node is not None else ""
@@ -277,7 +257,7 @@ class TurboParser:
             g_desc_match = DESCRIPTION_PATTERN.search(block)
             
             game_name = g_name_match.group(1) if g_name_match else "Unknown"
-            title, release_year = parse_game_info(game_name)
+            title, release_year = TosecTitleDecoder.parse_game_info(game_name)
             description = g_desc_match.group(1) if g_desc_match else ""
 
             for rom_match in ROM_PATTERN.finditer(block):
@@ -354,7 +334,7 @@ class TurboParser:
                             r_sha1 = SHA1_PATTERN.search(line)
                             
                             # Parse Game Details
-                            title, release_year = parse_game_info(current_game_info['name'])
+                            title, release_year = TosecTitleDecoder.parse_game_info(current_game_info['name'])
 
                             yield (
                                 dat_filename, 
