@@ -150,6 +150,17 @@ class DatabaseManager:
         
         self.conn.execute("INSERT OR REPLACE INTO db_metadata VALUES (?, ?)", (key, value))
 
+    def get_db_version(self) -> str | None:
+        """Retrieves the TOSEC version currently stamped on this database."""
+        return self.get_metadata_value("tosec_version")
+
+    def _set_db_version(self, version: str) -> None:
+        """
+        PROTECTED: Stamps the database with the TOSEC version string.
+        Should only be called internally by the ingestion engine after a wipe/init.
+        """
+        self.set_metadata_value("tosec_version", version)
+
     def get_processed_files(self) -> set[str]:
         """Returns a set of filenames that have already been imported."""
         try:
