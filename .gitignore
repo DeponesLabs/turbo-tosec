@@ -59,6 +59,7 @@ dev_benchmark_hook.py
 diagrams/*.dia~
 diagrams/*.png
 diagrams/*.dia.autosave
+diagrams/*.backup.dia
 diagrams/logs/
 
 # mypy cache
