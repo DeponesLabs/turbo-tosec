@@ -17,10 +17,11 @@
             "console":"integratedTerminal",
             "args": [
                 "--input", 
-                "E:\\HOME\\RetroVault\\TOSEC_DATs\\Extracted\\TOSEC-v2014-10-31",
+                "${workspaceFolder}/TEST_AREA",
                 "--output",
-                "E:\\HOME\\RetroVault\\Db\\TOSEC-v2014-10-31.duckdb",
-                "--direct"
+                "tosec_2012.duckdb",
+                "--workers", 
+                "1"
             ]
         },
         {   // Debug Tests (Pytest - Current File)
