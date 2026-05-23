@@ -1,3 +1,10 @@
+# [2.7.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.5...v2.7.0) (2026-05-23)
+
+
+### Features
+
+* **core:** finalize decoupled engine architecture and stabilize direct ingestion ([56fb5ea](https://github.com/DeponesLabs/turbo-tosec/commit/56fb5ea7681031e97187e2b7f6acb265a48501de))
+
 ## [2.6.5](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.4...v2.6.5) (2026-05-23)
 
 
