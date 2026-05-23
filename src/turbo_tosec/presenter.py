@@ -19,11 +19,12 @@ class CLIPresenter:
         if self.pbar and self.pbar.console_bar:
             if self.pbar.console_bar.total != total_bytes:
                 self.pbar.console_bar.total = total_bytes
-                
-            self.pbar.current = current_bytes
-            self.pbar.console_bar.n = current_bytes
-            self.pbar.console_bar.refresh()
             
+            delta = current_bytes - self.pbar.current
+            
+            if delta > 0:
+                self.pbar.update(delta)
+                
             if self.session:
                 self.pbar.set_postfix({"ROMs": self.session.total_roms, "Errors": self.session.error_count})
 
