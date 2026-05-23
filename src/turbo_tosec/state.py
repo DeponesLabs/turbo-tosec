@@ -42,7 +42,7 @@ class IngestionStateEvaluator:
                                         "Please select only one operational directive.")
             
         # Version Conflict Resolution
-        if current_db_version and not TosecNamingService.extract_version(current_db_version, input_version):
+        if current_db_version and not TosecNamingService.versions_match(current_db_version, input_version):
             if not force_new_requested:
                 raise VersionMismatchError(f"Version Conflict Detected. The existing database contains '{current_db_version}', "
                                            f"but the input directory indicates '{input_version}'. ",

@@ -307,7 +307,7 @@ class ImportSession:
 
         for filepath in files:
             try:
-                arrow_stream = parser.parse_to_arrow_stream(filepath, chunk_size=50000)
+                arrow_stream = parser.parse_to_arrow_stream(filepath=filepath, chunk_size=50000)
                 for arrow_batch in arrow_stream:
                     self.db.conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
                     self.total_roms += arrow_batch.num_rows

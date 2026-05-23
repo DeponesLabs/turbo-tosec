@@ -47,7 +47,7 @@ class TestIngestionStateEvaluator:
         assert isinstance(plan, IngestionActionPlan)
         assert plan.wipe_required is True
         assert plan.new_version_to_write == "TOSEC-v2"
-        assert len(plan.files_to_process) == 2  # It should process everything again
+        assert len(plan.pending_files) == 2  # It should process everything again
 
     def test_resume_action_plan(self):
         """Proves that 'resume' skips already processed files and does NOT wipe."""
@@ -62,5 +62,5 @@ class TestIngestionStateEvaluator:
         
         assert plan.wipe_required is False
         assert plan.new_version_to_write is None # Don't overwrite the version on a resume
-        assert len(plan.files_to_process) == 1   # Only f3.dat should be left
-        assert plan.files_to_process[0] == "f3.dat"
+        assert len(plan.pending_files) == 1   # Only f3.dat should be left
+        assert plan.pending_files[0] == "f3.dat"

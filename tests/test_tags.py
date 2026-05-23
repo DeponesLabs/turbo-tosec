@@ -6,7 +6,7 @@ class TestTosecTagEvaluator:
     
     def test_is_bad_dump(self):
         assert TosecTagEvaluator.is_bad_dump("Super Mario [b].rom") is True
-        assert TosecTagEvaluator.is_bad_dump("Super Mario [B].rom") is True  # Case insensitive check
+        assert TosecTagEvaluator.is_bad_dump("Super Mario [B].rom") is True
         assert TosecTagEvaluator.is_bad_dump("Super Mario [!].rom") is False
 
     def test_is_verified(self):
