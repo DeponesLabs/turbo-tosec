@@ -92,7 +92,7 @@ class UniversalProgress:
         
         if not self.callback:
             # CLI Mode: Initialize tqdm
-            self.console_bar = tqdm(total=total, initial=initial, unit=unit, unit_scale=True, unit_divisor=1024, desc=desc)
+            self.console_bar = tqdm.tqdm(total=total, initial=initial, unit=unit, unit_scale=True, unit_divisor=1024, desc=desc)
 
     def update(self, n: int) -> None:
         
