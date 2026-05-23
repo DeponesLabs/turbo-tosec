@@ -1,3 +1,10 @@
+## [2.6.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.0...v2.6.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* **config:** explicitly map turbo-tosec executable to CLI entry point to prevent UI module ImportError ([7b53237](https://github.com/DeponesLabs/turbo-tosec/commit/7b53237ad797b96a2cba9e1bf1fe26d0db540d4f))
+
 # [2.6.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.5.1...v2.6.0) (2026-05-23)
 
 
