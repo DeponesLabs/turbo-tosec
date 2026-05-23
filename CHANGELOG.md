@@ -1,3 +1,10 @@
+## [2.6.5](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.4...v2.6.5) (2026-05-23)
+
+
+### Bug Fixes
+
+* **presenter:** resolve progress bar freeze by changing condition ([9163d2f](https://github.com/DeponesLabs/turbo-tosec/commit/9163d2f5b0fcf9c72efdc4c3b9181e7142c264f0))
+
 ## [2.6.4](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.3...v2.6.4) (2026-05-23)
 
 
