@@ -35,7 +35,7 @@
                 "${file}"       // O an açık olan dosya
             ],
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "env": {
             "PYTHONPATH": "${workspaceFolder}/src"
             }
