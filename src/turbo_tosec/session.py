@@ -13,8 +13,9 @@ import pyarrow as pa
 import xml.etree.ElementTree as ET
 
 from turbo_tosec.database import DatabaseManager
-from turbo_tosec.parser import TurboParser, parse_game_info
+from turbo_tosec.parser import TurboParser
 from turbo_tosec.state import IngestionStateEvaluator, IngestionActionPlan
+from turbo_tosec.domain import TosecNamingService
 
 def worker_parse_task(filepath: str) -> List[Tuple]:
     """
@@ -92,27 +93,6 @@ class ImportSession:
                 
         return discovered
     
-    @staticmethod
-    def extract_tosec_version(directory_path: str) -> str:
-        """
-        Extracts the TOSEC version string from a given directory path using regular expressions.
-        
-        The expected pattern follows the standard TOSEC release naming convention,
-        which typically resembles 'TOSEC-vYYYY-MM-DD' (e.g., 'TOSEC-v2023-08-15').
-        
-        Args:
-            directory_path (str): The absolute or relative file system path to be evaluated.
-            
-        Returns:
-            str: The extracted TOSEC version string. Returns 'Unknown' if the pattern is not found.
-        """
-        version_pattern = r"(TOSEC-v\d{4}-\d{2}-\d{2})"
-        match = re.search(version_pattern, directory_path, re.IGNORECASE)
-        
-        if match:
-            return match.group(1)
-        return "Unknown"
-    
     def ingest(self, source_path: str, mode: str = 'direct', resume: bool = False, force_new: bool = False, filters: List[str] | None = None, 
                progress_callback: Callable[[int, int], None] | None = None,
                status_callback: Callable[[str], None] | None = None) -> Dict[str, int]:
@@ -134,7 +114,7 @@ class ImportSession:
         if not all_files:
             return {'total_roms': 0, 'errors': 0}
         
-        input_version = ImportSession.extract_tosec_version(source_path)
+        input_version = TosecNamingService.extract_version(source_path)
         db_version = self.db.get_metadata_value('tosec_version')
         
         plan = self._evaluate_state(all_files, input_version, db_version, resume, force_new)
@@ -327,7 +307,7 @@ class ImportSession:
 
         for filepath in files:
             try:
-                arrow_stream = parser.parse_to_arrow_stream(filepath, chunk_size=50000)
+                arrow_stream = parser.parse_to_arrow_stream(filepath=filepath, chunk_size=50000)
                 for arrow_batch in arrow_stream:
                     self.db.conn.execute("INSERT INTO roms SELECT * FROM arrow_batch")
                     self.total_roms += arrow_batch.num_rows

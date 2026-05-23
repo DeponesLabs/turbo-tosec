@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Set
 
+from turbo_tosec.domain import TosecNamingService
 from turbo_tosec.exceptions import ConflictingFlagsError, VersionMismatchError, TurboTosecBaseError
 
 @dataclass
@@ -41,7 +42,7 @@ class IngestionStateEvaluator:
                                         "Please select only one operational directive.")
             
         # Version Conflict Resolution
-        if current_db_version and current_db_version != input_version:
+        if current_db_version and not TosecNamingService.versions_match(current_db_version, input_version):
             if not force_new_requested:
                 raise VersionMismatchError(f"Version Conflict Detected. The existing database contains '{current_db_version}', "
                                            f"but the input directory indicates '{input_version}'. ",
