@@ -1,3 +1,15 @@
+# [2.6.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.5.1...v2.6.0) (2026-05-23)
+
+
+### Bug Fixes
+
+* get_db_version ([520f1de](https://github.com/DeponesLabs/turbo-tosec/commit/520f1deecf3faed13292664e37797ddd696a550d))
+
+
+### Features
+
+* add TosecTagEvaluator ([fbef1c1](https://github.com/DeponesLabs/turbo-tosec/commit/fbef1c16b9c5747fd0e47775f921b11224bad57c))
+
 ## [2.5.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.5.0...v2.5.1) (2026-05-19)
 
 
