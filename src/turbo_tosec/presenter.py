@@ -16,7 +16,11 @@ class CLIPresenter:
 
     def update_progress(self, current_bytes: int, total_bytes: int) -> None:
         """Translates raw engine byte metrics into CLI progress bar updates."""
-        if self.pbar and self.pbar.console_bar:
+        
+        # Debug Agent
+        tqdm.write(f"DEBUG -> Gelen: {current_bytes} / Toplam: {total_bytes}")
+        
+        if self.pbar is not None and self.pbar.console_bar is not None:
             if self.pbar.console_bar.total != total_bytes:
                 self.pbar.console_bar.total = total_bytes
             
