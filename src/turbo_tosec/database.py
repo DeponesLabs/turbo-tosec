@@ -31,7 +31,7 @@ class DatabaseManager:
             raise RuntimeError("Database connection has not been initialized.")
         return self._conn
     
-    def __init__(self, db_path: str, config: DBConfig | None, read_only: bool = False) -> None:
+    def __init__(self, db_path: str, config: DBConfig | None = None, read_only: bool = False) -> None:
         
         self.db_path = db_path
         # If config is None use default config
@@ -59,28 +59,6 @@ class DatabaseManager:
             self._setup_schema()
             
         self._load_column_metadata()
-    
-    def _apply_performance_settings(self) -> None:
-        """
-        Applies memory and thread settings for CLI Ingestion mode.
-        Prints status messages to console.
-        """
-        if self.config.turbo:
-            print(f"DB: Turbo Mode engaged (Low safety, High speed) | Mem: {self.config.memory} | Db Threads: {self.config.threads}")
-            
-            # Memory Configuration
-            final_mem = self.config.memory
-            if "%" in final_mem or final_mem == "auto":
-                final_mem = self._get_optimal_ram_limit(final_mem)
-                
-            # DuckDB PRAGMA Settings
-            self.conn.execute(f"PRAGMA memory_limit='{final_mem}'")
-            self.conn.execute(f"PRAGMA threads={self.config.threads}")
-            
-            # Safety Off (Optional: WAL can be disabled for increased speed, but it's risky)
-            # self.conn.execute("PRAGMA disable_checkpoint_on_shutdown") 
-        else:
-            print("DB Config: Safe Mode engaged (Full integrity)")
             
     def close(self) -> None:
         """Closes the database connection safely."""
@@ -88,56 +66,6 @@ class DatabaseManager:
             self._conn.close()
             self._conn = None
 
-    def _setup_schema(self, target_conn: duckdb.DuckDBPyConnection | None = None) -> None:
-        # Use the passed connection if it exists, otherwise use the default property
-        conn = target_conn or self.conn
-
-        # Main ROM table
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS roms (
-                dat_filename VARCHAR,
-                platform VARCHAR,
-                category VARCHAR,
-                game_name VARCHAR,
-                title VARCHAR,
-                release_year INTEGER,
-                description VARCHAR,
-                rom_name VARCHAR,
-                size BIGINT,
-                crc VARCHAR,
-                md5 VARCHAR,
-                sha1 VARCHAR,
-                status VARCHAR,
-                system VARCHAR
-            )
-        """)
-        # Processed files table
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS processed_files (
-                filename VARCHAR PRIMARY KEY,
-                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Metadata
-        conn.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
-    
-    def _load_column_metadata(self) -> None:
-        """Caches column names for the GUI model."""
-        try:
-            cursor = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'")
-            res1 = cursor.fetchone()
-            if not res1 or res1[0] == 0:
-                self._column_names = []
-            
-            res2 = self.conn.execute("SELECT * FROM roms LIMIT 0")
-            if res2.description:
-                self._column_names = [desc[0] for desc in res2.description]
-            else:
-                self._column_names = []
-                
-        except Exception:
-            self._column_names = []
-    
     def get_metadata_value(self, key: str) -> str | None:
         
         try:
@@ -442,6 +370,78 @@ class DatabaseManager:
                                 status=match[8],
                                 system=match[9])
         return tosecDat
+
+    def _setup_schema(self, target_conn: duckdb.DuckDBPyConnection | None = None) -> None:
+        # Use the passed connection if it exists, otherwise use the default property
+        conn = target_conn or self.conn
+
+        # Main ROM table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS roms (
+                dat_filename VARCHAR,
+                platform VARCHAR,
+                category VARCHAR,
+                game_name VARCHAR,
+                title VARCHAR,
+                release_year INTEGER,
+                description VARCHAR,
+                rom_name VARCHAR,
+                size BIGINT,
+                crc VARCHAR,
+                md5 VARCHAR,
+                sha1 VARCHAR,
+                status VARCHAR,
+                system VARCHAR
+            )
+        """)
+        # Processed files table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS processed_files (
+                filename VARCHAR PRIMARY KEY,
+                processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Metadata
+        conn.execute("CREATE TABLE IF NOT EXISTS db_metadata (key VARCHAR PRIMARY KEY, value VARCHAR)")
+
+    def _apply_performance_settings(self) -> None:
+        """
+        Applies memory and thread settings for CLI Ingestion mode.
+        Prints status messages to console.
+        """
+        if self.config.turbo:
+            print(f"DB: Turbo Mode engaged (Low safety, High speed) | Mem: {self.config.memory} | Db Threads: {self.config.threads}")
+            
+            # Memory Configuration
+            final_mem = self.config.memory
+            if "%" in final_mem or final_mem == "auto":
+                final_mem = self._get_optimal_ram_limit(final_mem)
+                
+            # DuckDB PRAGMA Settings
+            self.conn.execute(f"PRAGMA memory_limit='{final_mem}'")
+            self.conn.execute(f"PRAGMA threads={self.config.threads}")
+            
+            # Safety Off (Optional: WAL can be disabled for increased speed, but it's risky)
+            # self.conn.execute("PRAGMA disable_checkpoint_on_shutdown") 
+        else:
+            print("DB Config: Safe Mode engaged (Full integrity)")
+
+    def _load_column_metadata(self) -> None:
+        """Caches column names for the GUI model."""
+        try:
+            cursor = self.conn.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'roms'")
+            res1 = cursor.fetchone()
+            if not res1 or res1[0] == 0:
+                self._column_names = []
+            
+            res2 = self.conn.execute("SELECT * FROM roms LIMIT 0")
+            if res2.description:
+                self._column_names = [desc[0] for desc in res2.description]
+            else:
+                self._column_names = []
+                
+        except Exception:
+            self._column_names = []
 
     def _build_where_clause(self, filters: Dict[str, str]) -> Tuple[str, List[Any]]:
         """Constructs a safe SQL WHERE clause."""
