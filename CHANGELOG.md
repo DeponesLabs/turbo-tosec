@@ -1,3 +1,10 @@
+## [2.6.2](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.1...v2.6.2) (2026-05-23)
+
+
+### Bug Fixes
+
+* **terminal:** replace tqdm module call with tqdm.twdm call & add new tests ([b9c61e4](https://github.com/DeponesLabs/turbo-tosec/commit/b9c61e4f159df79e7ef24c96bba1b6dc2788999d))
+
 ## [2.6.1](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.0...v2.6.1) (2026-05-23)
 
 
