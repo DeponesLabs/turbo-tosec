@@ -1,3 +1,10 @@
+## [2.6.4](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.3...v2.6.4) (2026-05-23)
+
+
+### Bug Fixes
+
+* **presenter:** resolve progress bar freeze by using delta updates for tqdm ([9b80d6a](https://github.com/DeponesLabs/turbo-tosec/commit/9b80d6a7c8d089bab04b067eb629e3f2984a83be))
+
 ## [2.6.3](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.2...v2.6.3) (2026-05-23)
 
 
