@@ -19,7 +19,7 @@ from turbo_tosec.terminal import UniversalProgress, Console
 from turbo_tosec.presenter import CLIPresenter
 from turbo_tosec.system import open_file_with_default_app, check_system_resources
         
-def setup_logging(log_file: str):
+def setup_logging(log_file: str) -> None:
    
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
@@ -29,7 +29,7 @@ def setup_logging(log_file: str):
             handlers=[logging.FileHandler(log_file, mode='w', encoding='utf-8')]
     )
 
-def run_scan_mode(args, log_filename: str):
+def run_scan_mode(args, log_filename: str) -> None:
     
     setup_logging(log_filename)
     check_system_resources(args.workers, args.db_threads)
@@ -78,7 +78,7 @@ def run_scan_mode(args, log_filename: str):
                 pass
         Console.success("Clean import.")
 
-def run_parquet_mode(args):
+def run_parquet_mode(args) -> None:
     """Handles Parquet import/export operations."""
     # Instantiate an empty presenter for static methods
     presenter = CLIPresenter()
@@ -89,7 +89,7 @@ def run_parquet_mode(args):
         elif args.import_file:
             db.import_from_parquet(args.import_file, args.workers, status_callback=presenter.write_standard)
 
-def main():
+def main() -> None:
     
     # If no subcommand given, and not asking for help/version, add 'scan' as default command.
     if len(sys.argv) > 1 and sys.argv[1] not in ['scan', 'parquet', '--help', '-h', '--version', '-v', '--about']:
