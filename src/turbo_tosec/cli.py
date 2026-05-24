@@ -29,7 +29,7 @@ def setup_logging(log_file: str) -> None:
             handlers=[logging.FileHandler(log_file, mode='w', encoding='utf-8')]
     )
 
-def run_scan_mode(args, log_filename: str) -> None:
+def run_scan_mode(args: argparse.Namespace, log_filename: str) -> None:
     
     setup_logging(log_filename)
     check_system_resources(args.workers, args.db_threads)
@@ -78,7 +78,7 @@ def run_scan_mode(args, log_filename: str) -> None:
                 pass
         Console.success("Clean import.")
 
-def run_parquet_mode(args) -> None:
+def run_parquet_mode(args: argparse.Namespace) -> None:
     """Handles Parquet import/export operations."""
     # Instantiate an empty presenter for static methods
     presenter = CLIPresenter()
