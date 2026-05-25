@@ -7,7 +7,7 @@ name = "turbo-tosec"
 version = "2.7.0"  # Starter version
 description = "High-performance TOSEC DAT importer using DuckDB"
 authors = [
-  { name="Berk Acunas", email="berkacunas@gmail.com" },
+  { name="Berk Acunas", email="info@deponessoft.com" },
 ]
 dependencies = [
     "duckdb",
@@ -29,7 +29,7 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.mypy]
-python_version = "2.7.0"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true  # Requires all functions to have type hints

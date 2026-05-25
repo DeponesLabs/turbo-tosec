@@ -1,0 +1,52 @@
+@startuml
+' --- Styling Options ---
+' This removes the weird UML character icons and uses standard + / - / # symbols
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+
+' --- Presentation Layer ---
+package "turbo_tosec.cli" {
+    
+    class "<<module>>\ncli" as cli_module {
+        + {static} run_scan_mode(args, log_filename)
+        + {static} run_parquet_mode(args)
+    }
+
+    class CLIPresenter {
+        + pbar: UniversalProgress
+        + session: ImportSession
+        + update_progress(current_bytes: int, total_bytes: int)
+        + write_above_bar(msg: str)
+    }
+}
+
+' --- Core Engine Layer ---
+package "turbo_tosec.core" {
+    
+    class ImportSession {
+        + /total_roms: int {readOnly}
+        + /error_count: int {readOnly}
+        + ingest(source: str, mode: str, callbacks...)
+        - _run_direct_mode()
+    }
+
+    class DatabaseManager {
+        + db_path: str
+        + config: DBConfig
+        + configure_threads(workers: int)
+        + export_to_parquet(filepath: str)
+    }
+}
+
+' --- Relationships ---
+' CLIPresenter uses ImportSession (Dependency)
+CLIPresenter ..> ImportSession : injects callbacks >
+
+' ImportSession heavily relies on DatabaseManager (Aggregation)
+ImportSession o-- DatabaseManager : uses >
+
+' CLI module calls the presenter (Dependency)
+cli_module ..> CLIPresenter : instantiates >
+
+@enduml

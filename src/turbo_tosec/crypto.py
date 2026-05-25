@@ -1,7 +1,19 @@
 import os
 from typing import Generator, Tuple
 import hashlib
+import warnings
+import functools
 
+from turbo_tosec.deprecation import deprecated
+
+DEPRECATION_MSG = ("The 'crypto' module is deprecated. "
+                   "Please use 'turbo_tosec.core.hasher.FileHasher' instead.")
+
+# Module-level warning (Triggers when someone does 'import crypto')
+warnings.warn(DEPRECATION_MSG, category=DeprecationWarning, stacklevel=2)
+
+
+@deprecated(reason=DEPRECATION_MSG)
 def calculate_file_hash(filepath: str, hash_algorithm: str = "md5", chunk_size: int = 8192) -> str:
     """
     Calculates the hash of a file synchronously.
@@ -25,6 +37,7 @@ def calculate_file_hash(filepath: str, hash_algorithm: str = "md5", chunk_size: 
 
     return hasher.hexdigest()
 
+@deprecated(reason=DEPRECATION_MSG)
 def calculate_file_hash_gen(filepath: str, hash_algorithm: str = "md5", chunk_size: int = 8192) -> Generator[Tuple[int, int], None, str]:
     """
     A generator-based hash calculator.
