@@ -1,3 +1,11 @@
+# [2.8.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.7.0...v2.8.0) (2026-05-25)
+
+
+### Features
+
+* add deprecation module for to point out deprecated code in deb progress ([2c120dc](https://github.com/DeponesLabs/turbo-tosec/commit/2c120dc4e6d24dcf47e0d0c03bf9ea9d5b4c2d48))
+* add hasher module and replace crypto module ([f10e756](https://github.com/DeponesLabs/turbo-tosec/commit/f10e75604c24970fedba4b57c359b6a8fe7ec7e1))
+
 # [2.7.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.6.5...v2.7.0) (2026-05-23)
 
 
