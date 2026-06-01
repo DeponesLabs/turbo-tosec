@@ -1,0 +1,150 @@
+classDiagram
+ direction TB
+ class CLIPresenter {
+  pbar : UniversalProgress or None
+  session : ImportSession or None
+  update_progress(current_bytes: int, total_bytes: int) None
+  write_above_bar(msg: str) None
+  write_standard(msg: str) None
+ }
+ class ConflictingFlagsError 
+ class Console {
+  BOLD : str
+  ENDC : str
+  FAIL : str
+  HEADER : str
+  OKBLUE : str
+  OKCYAN : str
+  OKGREEN : str
+  SYM_FAIL : str
+  SYM_INFO : str
+  SYM_PLUS : str
+  SYM_TIME : str
+  SYM_WARN : str
+  UNDERLINE : str
+  WARNING : str
+  banner() None
+  error(msg: str) None
+  info(msg: str, indent: int) None
+  perf(msg: str) None
+  section(title: str) None
+  success(msg: str, indent: int) None
+  warning(msg: str) None
+ }
+ class DBConfig {
+  memory : str
+  threads : int
+  turbo : bool
+ }
+ class DatabaseManager {
+  columns : List⟨str⟩
+  config
+  conn : duckdb.DuckDBPyConnection
+  db_path : str
+  read_only : bool
+  close() None
+  configure_threads(thread_count: int) None
+  connect() None
+  export_to_parquet(parquet_path: str, threads: int, status_callback: Callable⟨⟨str⟩ None⟩ or None) None
+  fetch_page(limit: int, offset: int, filters: Dict⟨str str⟩ or None, sort_col: str or None, sort_asc: bool) List⟨Tuple⟩
+  find_by_fuzzy_name(filename: str, platform: str or None, threshold: float) Tuple or None
+  find_by_hash(file_hash: str, hash_type: str, platform: str or None) Tuple or None
+  get_db_version() str or None
+  get_metadata_value(key: str) str or None
+  get_processed_files() set⟨str⟩
+  get_total_count(filters: Dict⟨str str⟩ or None) int
+  import_from_parquet(parquet_path: str, threads: int, status_callback: Callable⟨⟨str⟩ None⟩ or None) None
+  import_from_parquet_folder(folder_path: str, status_callback: Callable⟨⟨str⟩ None⟩ or None) None
+  insert_batch(buffer: List⟨Tuple⟩) None
+  resolve_game_match(filename: str, file_hash: str or None, hash_type: str, platform: str or None) TosecDat or None
+  set_metadata_value(key: str, value: str) None
+  wipe_database() None
+ }
+ class FileHasher {
+  compute_gen(file_path: str, algorithm: str) Generator⟨tuple⟨int int⟩ None str⟩
+  compute_sync(file_path: str, algorithm: str, is_cancelled: Callable⟨⟨⟩ bool⟩ or None) str or None
+ }
+ class ImportSession {
+  batch_size : int
+  buffer : List⟨Tuple⟨Any⟩⟩
+  db
+  error_count : int
+  executor : concurrent.futures.ProcessPoolExecutor or None
+  stop_monitor : Event
+  temp_dir : str
+  total_roms : int
+  workers : int
+  ingest(source_path: str, mode: str, resume: bool, force_new: bool, filters: List⟨str⟩ or None, progress_callback: Callable⟨⟨int int⟩ None⟩ or None, status_callback: Callable⟨⟨str⟩ None⟩ or None) Dict⟨str int⟩
+ }
+ class IngestionActionPlan {
+  new_version_to_write : str or None
+  pending_files : List⟨str⟩
+  wipe_required : bool
+ }
+ class IngestionStateEvaluator {
+  evaluate(all_discovered_files: List⟨str⟩, processed_files: Set⟨str⟩, current_db_version: str or None, input_version: str, resume_requested: bool, force_new_requested: bool) IngestionActionPlan
+ }
+ class MEMORYSTATUSEX {
+  dwLength
+ }
+ class TosecDat {
+  category : str
+  crc : str
+  dat_filename : str
+  description : str
+  game_name : str
+  is_verified : bool
+  md5 : str
+  platform : str
+  release_year : str
+  rom_name : str
+  score : float
+  sha1 : str
+  size : int
+  status : str
+  system : str
+  title : str
+  match_quality(local_file_size: int, local_crc: str) int
+ }
+ class TosecDumpStatus {
+  name
+ }
+ class TosecModification {
+  name
+ }
+ class TosecNamingService {
+  extract_version(directory_path: str) str
+  versions_match(db_version: str, input_version: str) bool
+ }
+ class TosecTagEvaluator {
+  analyze_tags(filename: str) Dict⟨str Any⟩
+  extract_languages(filename: str) List⟨str⟩
+  is_alternate(filename: str) bool
+  is_bad_dump(filename: str) bool
+  is_cracked(filename: str) bool
+  is_verified(filename: str) bool
+ }
+ class TosecTitleDecoder {
+  parse_game_info(game_name: str or None) Tuple⟨str int⟩
+ }
+ class TurboParser {
+  ARROW_SCHEMA
+  iterparse(filepath: str) Iterator⟨Tuple⟩
+  parse(filepath: str) List⟨Tuple⟩
+  parse_and_save_chunks(filepath: str, output_dir: str, chunk_size: int) Dict⟨str int⟩
+  parse_to_arrow_stream(filepath: str, chunk_size: int) Iterator⟨pa.Table⟩
+ }
+ class TurboTosecBaseError 
+ class UniversalProgress {
+  callback : Callable⟨⟨int int⟩ None⟩ or None
+  console_bar : tqdm
+  current : int
+  total : int
+  close() None
+  set_postfix(stats: dict⟨str int⟩) None
+  update(n: int) None
+ }
+ class VersionMismatchError 
+ ConflictingFlagsError --|> TurboTosecBaseError
+ VersionMismatchError --|> TurboTosecBaseError
+ DatabaseManager --o ImportSession : db
