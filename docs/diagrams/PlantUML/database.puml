@@ -1,0 +1,74 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+
+' --- External and Domain Classes ---
+class NamedTuple <<typing>> {
+}
+
+class TosecDat <<turbo_tosec.domainobjects>> {
+}
+
+class DuckDBPyConnection <<duckdb>> {
+}
+
+' --- Configuration Class ---
+class DBConfig <<turbo_tosec.config>> {
+    + memory: str = "4GB"
+    + threads: int = 1
+    + turbo: bool = False
+}
+
+' --- Main Database Manager ---
+class DatabaseManager {
+    ' Attributes (Fields)
+    + db_path: str
+    + read_only: bool
+    - config: DBConfig
+    - _conn: DuckDBPyConnection | None
+    - _column_names: List[str]
+    
+    ' Properties (Getters)
+    + columns(): List[str] <<property>>
+    + conn(): DuckDBPyConnection <<property>>
+
+    ' Public Operations
+    + __init__(db_path: str, config: DBConfig | None, read_only: bool)
+    + __enter__(): DatabaseManager
+    + __exit__(exc_type, exc_val, exc_tb)
+    + connect()
+    + close()
+    + get_metadata_value(key: str): str | None
+    + set_metadata_value(key: str, value: str)
+    + get_db_version(): str | None
+    + get_processed_files(): set[str]
+    + wipe_database()
+    + insert_batch(buffer: List[Tuple])
+    + export_to_parquet(parquet_path: str, threads: int, status_callback: Callable | None)
+    + import_from_parquet(parquet_path: str, threads: int, status_callback: Callable | None)
+    + import_from_parquet_folder(folder_path: str, status_callback: Callable | None)
+    + configure_threads(thread_count: int)
+    + get_total_count(filters: Dict | None): int
+    + fetch_page(limit: int, offset: int, filters: Dict, sort_col: str, sort_asc: bool): List[Tuple]
+    + find_by_hash(file_hash: str, hash_type: str, platform: str | None): Tuple | None
+    + find_by_fuzzy_name(filename: str, platform: str | None, threshold: float): Tuple | None
+    + resolve_game_match(filename: str, file_hash: str, hash_type: str, platform: str): TosecDat | None
+    
+    ' Internal / Protected Operations
+    - _set_db_version(version: str)
+    - _setup_schema(target_conn: DuckDBPyConnection | None)
+    - _apply_performance_settings()
+    - _load_column_metadata()
+    - _build_where_clause(filters: Dict): Tuple
+    - _get_optimal_ram_limit(limit_str: str): str
+    - _get_optimal_ram_limit_native(limit_str: str): str
+}
+
+' --- Strict Architectural Relationships ---
+NamedTuple <|-- DBConfig : Inherits
+DatabaseManager o-- DBConfig : Aggregation
+DatabaseManager *-- DuckDBPyConnection : Composition
+DatabaseManager ..> TosecDat : Dependency (Returns)
+
+@enduml

@@ -1,0 +1,45 @@
+classDiagram
+ direction TB
+ class turbo_tosec 
+ class _version 
+ class cli 
+ class crypto 
+ class database 
+ class deprecation 
+ class domain 
+ class domainobjects 
+ class exceptions 
+ class filesystem 
+ class formatting 
+ class hasher 
+ class parser 
+ class presenter 
+ class session 
+ class state 
+ class system 
+ class tags 
+ class terminal 
+ class tosec_importer 
+ turbo_tosec --> _version
+ turbo_tosec --> database
+ turbo_tosec --> parser
+ turbo_tosec --> session
+ cli --> _version
+ cli --> database
+ cli --> exceptions
+ cli --> presenter
+ cli --> session
+ cli --> system
+ cli --> terminal
+ crypto --> deprecation
+ database --> domainobjects
+ parser --> domain
+ presenter --> session
+ presenter --> terminal
+ session --> database
+ session --> domain
+ session --> parser
+ session --> state
+ state --> domain
+ state --> exceptions
+ tosec_importer --> cli
