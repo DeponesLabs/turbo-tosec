@@ -1,3 +1,10 @@
+# [2.9.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.8.0...v2.9.0) (2026-06-01)
+
+
+### Features
+
+* **tools:** implement automated pyreverse-to-mermaid pipeline ([b2d5216](https://github.com/DeponesLabs/turbo-tosec/commit/b2d52164dcbbbb9a57c242dea980b05995b53320))
+
 # [2.8.0](https://github.com/DeponesLabs/turbo-tosec/compare/v2.7.0...v2.8.0) (2026-05-25)
 
 
