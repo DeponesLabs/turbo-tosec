@@ -1,0 +1,38 @@
+classDiagram
+  class DatabaseManager {
+    columns : List[str]
+    config
+    conn : duckdb.DuckDBPyConnection
+    db_path : str
+    read_only : bool
+    close() None
+    configure_threads(thread_count: int) None
+    connect() None
+    export_to_parquet(parquet_path: str, threads: int, status_callback: Callable[[str], None] | None) None
+    fetch_page(limit: int, offset: int, filters: Dict[str, str] | None, sort_col: str | None, sort_asc: bool) List[Tuple]
+    find_by_fuzzy_name(filename: str, platform: str | None, threshold: float) Tuple | None
+    find_by_hash(file_hash: str, hash_type: str, platform: str | None) Tuple | None
+    get_db_version() str | None
+    get_metadata_value(key: str) str | None
+    get_processed_files() set[str]
+    get_total_count(filters: Dict[str, str] | None) int
+    import_from_parquet(parquet_path: str, threads: int, status_callback: Callable[[str], None] | None) None
+    import_from_parquet_folder(folder_path: str, status_callback: Callable[[str], None] | None) None
+    insert_batch(buffer: List[Tuple]) None
+    resolve_game_match(filename: str, file_hash: str | None, hash_type: str, platform: str | None) TosecDat | None
+    set_metadata_value(key: str, value: str) None
+    wipe_database() None
+  }
+  class ImportSession {
+    batch_size : int
+    buffer : List[Tuple[Any, ...]]
+    db
+    error_count : int
+    executor : NoneType, concurrent.futures.ProcessPoolExecutor | None
+    stop_monitor : Event
+    temp_dir : str
+    total_roms : int
+    workers : int
+    ingest(source_path: str, mode: str, resume: bool, force_new: bool, filters: List[str] | None, progress_callback: Callable[[int, int], None] | None, status_callback: Callable[[str], None] | None) Dict[str, int]
+  }
+  DatabaseManager --o ImportSession : db

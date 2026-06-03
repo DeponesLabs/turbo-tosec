@@ -148,3 +148,33 @@ classDiagram
  ConflictingFlagsError --|> TurboTosecBaseError
  VersionMismatchError --|> TurboTosecBaseError
  DatabaseManager --o ImportSession : db
+
+%% Dependencies and Usage relationships
+ImportSession ..> TurboParser : uses
+ImportSession ..> FileHasher : uses
+ImportSession ..> IngestionStateEvaluator : uses
+ImportSession ..> CLIPresenter : updates
+
+%% Core Business Logic relationships
+DatabaseManager ..> TosecDat : returns
+DatabaseManager ..> IngestionActionPlan : checks
+IngestionStateEvaluator ..> IngestionActionPlan : produces
+
+%% Domain Parsing Utilities
+TosecNamingService ..> TosecTitleDecoder : utilizes
+TosecTagEvaluator ..> TosecDat : analyzes
+
+%% Dependencies and Usage relationships
+ImportSession ..> TurboParser : uses
+ImportSession ..> FileHasher : uses
+ImportSession ..> IngestionStateEvaluator : uses
+ImportSession ..> CLIPresenter : updates
+
+%% Core Business Logic relationships
+DatabaseManager ..> TosecDat : returns
+DatabaseManager ..> IngestionActionPlan : checks
+IngestionStateEvaluator ..> IngestionActionPlan : produces
+
+%% Domain Parsing Utilities
+TosecNamingService ..> TosecTitleDecoder : utilizes
+TosecTagEvaluator ..> TosecDat : analyzes

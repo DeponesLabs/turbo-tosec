@@ -49,7 +49,7 @@ def parse_arguments():
     )
     return parser.parse_args()
 
-def run_pyreverse(source: str, output: str, ignore: str, depth: str) -> tuple[Path, Path]:
+def run_pyreverse(source: str, output: str, ignore: str, depth: str, file_format: str = 'mmd') -> tuple[Path, Path]:
     """
     Executes pyreverse and dynamically maps both output paths.
     
@@ -64,7 +64,7 @@ def run_pyreverse(source: str, output: str, ignore: str, depth: str) -> tuple[Pa
     command = [
         "pyreverse",
         source,
-        "-o", "mmd",
+        "-o", file_format,
         "-a", depth,
         f"--ignore={ignore}",
         "-d", str(out_path)
@@ -75,8 +75,8 @@ def run_pyreverse(source: str, output: str, ignore: str, depth: str) -> tuple[Pa
         print("[+] pyreverse successfully compiled Class and Project files.")
         
         # Capture and return both file paths explicitly as a tuple
-        classes_file = out_path / "classes.mmd"
-        packages_file = out_path / "packages.mmd"
+        classes_file = out_path / f"classes.{file_format}"
+        packages_file = out_path / f"packages.{file_format}"
         return classes_file, packages_file
         
     except subprocess.CalledProcessError as e:
@@ -149,7 +149,8 @@ if __name__ == "__main__":
         source=args.source,
         output=args.output,
         ignore=args.ignore,
-        depth=args.depth
+        depth=args.depth,
+        file_format='png'
     )
     
     # Process both target documents sequentially using your orientation settings
